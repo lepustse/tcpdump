@@ -51,6 +51,13 @@ rt_uint8_t buf[42] =
 };
 #endif
 
+/**
+ * This function will create a PCAP-formatted file.
+ *
+ * @param pkg IP packets that need to be processed.
+ *
+ * @return PCAP-formatted file.
+ */
 rt_pcap_file_t *rt_creat_pcap_file(rt_ip_mess_t *pkg)
 {
     rt_pcap_file_t *file = RT_NULL;
@@ -79,6 +86,13 @@ rt_pcap_file_t *rt_creat_pcap_file(rt_ip_mess_t *pkg)
     return file;
 }
 
+/**
+ * This function will capture the time that the IP message was received.
+ *
+ * @param flag second or millisecond.
+ *
+ * @return the time captured.
+ */
 rt_uint32_t rt_capture_time(rt_uint8_t flag)
 {
     rt_uint32_t tick = rt_tick_get();
@@ -97,6 +111,13 @@ rt_uint32_t rt_capture_time(rt_uint8_t flag)
     }
 }
 
+/**
+ * This function will delete the PCAP-formatted file.
+ *
+ * @param file PCAP-formatted file.
+ *
+ * @return status.
+ */
 int rt_del_pcap_file(rt_pcap_file_t *file)
 {
     if (file == RT_NULL)
@@ -105,6 +126,14 @@ int rt_del_pcap_file(rt_pcap_file_t *file)
     return 0;
 }
 
+/**
+ * This function will save the PCAP-formatted file in File system.
+ *
+ * @param file PCAP-formatted file.
+ * @param filename save it with name.
+ *
+ * @return status.
+ */
 int rt_save_pcap_file(rt_pcap_file_t *file, const char *filename)
 {
     int fd, length;
@@ -129,14 +158,16 @@ int rt_save_pcap_file(rt_pcap_file_t *file, const char *filename)
     }
     close(fd);
 
+    /* open file */
     fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0);
     if (fd < 0)
     {
         rt_kprintf("open file for append write failed\n");
         return -1;
     }
+    
+    /* append file */
     length = write(fd, (rt_uint8_t *)file->ip_mess, file->ip_len);
-
     if (length != file->ip_len)
     {
         rt_kprintf("append write data failed\n");
@@ -149,6 +180,14 @@ int rt_save_pcap_file(rt_pcap_file_t *file, const char *filename)
     return 0;
 }
 
+
+/**
+ * This function will receive IP message from mailbox and save.
+ *
+ * @param none.
+ *
+ * @return IP message.
+ */
 rt_ip_mess_t *rt_recv_ip_mess(void)
 {
     struct pbuf *p, *pbuf;
@@ -185,6 +224,13 @@ rt_ip_mess_t *rt_recv_ip_mess(void)
     }
 }
 
+/**
+ * This function will delete IP message.
+ *
+ * @param pkg IP message.
+ *
+ * @return status.
+ */
 int rt_del_ip_mess(struct rt_ip_mess *pkg)
 {
     if (pkg == RT_NULL)
@@ -210,6 +256,13 @@ static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
     link_output(netif, p);
 }
 
+/**
+ * This function will print PCAP-formatted file in serial terminal.
+ *
+ * @param file PCAP-formatted file.
+ *
+ * @return none.
+ */
 void rt_printf_pcap_file(rt_pcap_file_t *file)
 {
     rt_u32_data_t u32_data;
@@ -305,6 +358,13 @@ void rt_printf_pcap_file(rt_pcap_file_t *file)
     rt_kprintf("\n\n");
 }
 
+/**
+ * This function is tcpdump thread entry.
+ *
+ * @param param.
+ *
+ * @return none.
+ */
 void rt_tcp_dump_thread(void *param)
 {
     struct rt_ip_mess *p;
@@ -333,6 +393,13 @@ void rt_tcp_dump_thread(void *param)
     }
 }
 
+/**
+ * This function will initialize thread, mailbox, device etc.
+ *
+ * @param none.
+ *
+ * @return status.
+ */
 rt_err_t rt_tcp_dump_init(void)
 {
     static struct eth_device *dev;

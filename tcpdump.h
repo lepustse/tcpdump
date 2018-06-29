@@ -68,7 +68,7 @@ struct rt_pcap_file_header
     rt_uint32_t magic;           // 0xa1b2c3d4
     rt_uint16_t version_major;   // 0x0200
     rt_uint16_t version_minor;   // 0x0400
-    rt_int32_t  thiszone;         // 0
+    rt_int32_t  thiszone;        // 0
     rt_uint32_t sigfigs;         //
     rt_uint32_t snaplen;         //
     rt_uint32_t linktype;        // 1
