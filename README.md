@@ -5,23 +5,11 @@
 
 ## 2、使用
 
-### 2.1 启用tcpdump
+使用msh/>操作
 
-调用相关API
-```
-rt_tcp_dump_init();
-rt_tcpdump_write_enable();
+### 2.1 插入SD卡
 
-```
-
-### 2.2 关闭tcpdump
-
-调用相关API
-```
-rt_tcp_dump_deinit();
-```
-
-### 2.3 msh/>输出文件名
+### 2.1 输入文件名
 
 ```
 msh />tcpdump_name test.pcap
@@ -29,9 +17,29 @@ set file name: test.pcap
 msh />
 ```
 
+在msh/>输入ls命令查看
+
+```
+msh />ls
+Directory /:
+System Volume Information<DIR>
+test.pcap           0
+msh />
+```
+### 2.2 开始抓包
+
+```
+```
+
+### 2.3 保存文件
+
+```
+```
+
+
 ## 4、注意事项
 
-暂无
+如果不需要抓包了请close tcpdump 功能
 
 ## 5、联系方式 & 感谢
 
