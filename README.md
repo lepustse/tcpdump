@@ -9,7 +9,8 @@
 
 ### 2.1 开启抓包
 
-在msh/>命令行，输入如下命令，抓16个数据包
+msh/>里，输入"tcpdump_c 16"，详情如下：
+
 
 ```
 msh />tcpdump_c 16
@@ -17,14 +18,24 @@ msh />tcpdump_c 16
 msh />
 ```
 
+另外，msh/> 带自动补全功能，输入tc，按tab键，详情如下：
+
+```
+msh />tc
+tcpdump_f
+tcpdump_c
+tcpdump_w
+msh />tcpdump_
+```
+
+
 ### 2.2 ping
 
-在msh/>命令行，输入 ping 192.168.1.29
-或在cmd命令行输入 ping 192.168.1.30（板子是静态IP地址）
+msh/>里输入ifconfig得到IP，电脑ping这个IP
 
 ### 2.3 查看结果
 
-在msh/>命令行，输入ls命令查看保存结果
+msh/>里，输入ls命令查看保存结果，详情如下：
 
 ```
 msh />ls
@@ -48,8 +59,7 @@ msh />
 
 ### 2.5 ping
 
-在msh/>命令行，输入 ping 192.168.1.29
-或在cmd命令行输入 ping 192.168.1.30（板子是静态IP地址）
+msh/>里输入ifconfig得到IP，电脑ping这个IP
 
 ### 2.6 查看结果
 

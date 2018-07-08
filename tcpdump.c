@@ -65,13 +65,6 @@ struct rt_pkthdr
     rt_uint32_t len;
 };
 
-//struct tcpdump_msg
-//{
-//    void *pbuf;
-//    rt_uint32_t sec;
-//    rt_uint32_t msec;
-//};
-
 #define DBG_ENABLE
 //#undef  DBG_ENABLE
 #define DBG_SECTION_NAME  "[TCPDUMP]"
@@ -93,24 +86,26 @@ struct rt_pkthdr
 #define PCAP_FILE_HEADER_SIZE       (24)
 #define PCAP_PKTHDR_SIZE            (16)
 
-#define PACP_FILE_HEADER_CREEATE(_head)             \
-    do {                                            \
-    (_head)->magic = PCAP_FILE_ID;                  \
-    (_head)->version_major = PCAP_VERSION_MAJOR;    \
-    (_head)->version_minor = PCAP_VERSION_MINOR;    \
-    (_head)->thiszone = GREENWICH_MEAN_TIME;        \
-    (_head)->sigfigs = PRECISION_OF_TIME_STAMP;     \
-    (_head)->snaplen = MAX_LENTH_OF_CAPTURE_PKG;    \
-    (_head)->linktype = ETHERNET;                   \
-    } while (0)
+#define TICK_1_MS                   (1000)
 
-#define PACP_PKTHDR_CREEATE(_head, _p)              \
-    do {                                            \
-    (_head)->ts.tv_sec  = (rt_tick_get() / 1000);   \
-    (_head)->ts.tv_msec = (rt_tick_get() % 1000);   \
-    (_head)->caplen = _p->tot_len;                  \
-    (_head)->len = _p->tot_len;                     \
-    } while (0)
+//#define PACP_FILE_HEADER_CREEATE(_head)             \
+//    do {                                            \
+//    (_head)->magic = PCAP_FILE_ID;                  \
+//    (_head)->version_major = PCAP_VERSION_MAJOR;    \
+//    (_head)->version_minor = PCAP_VERSION_MINOR;    \
+//    (_head)->thiszone = GREENWICH_MEAN_TIME;        \
+//    (_head)->sigfigs = PRECISION_OF_TIME_STAMP;     \
+//    (_head)->snaplen = MAX_LENTH_OF_CAPTURE_PKG;    \
+//    (_head)->linktype = ETHERNET;                   \
+//    } while (0)
+
+//#define PACP_PKTHDR_CREEATE(_head, _p)                   \
+//    do {                                                 \
+//    (_head)->ts.tv_sec  = (rt_tick_get() / TICK_1_MS);   \
+//    (_head)->ts.tv_msec = (rt_tick_get() % TICK_1_MS);   \
+//    (_head)->caplen = _p->tot_len;                       \
+//    (_head)->len = _p->tot_len;                          \
+//    } while (0)
 
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
@@ -122,12 +117,12 @@ static netif_input_fn input;
 static int fd = -1;
 static int close_flag;
 static int count;
-static int pkt_count;    
+static int pkt_count;
 static int name_change;
 static int stop_count = 1;
-    
+
 void rt_tcpdump_deinit(void);
-    
+
 #define TCPDUMP_DEBUG
 #ifdef  TCPDUMP_DEBUG
 #define __is_print(ch) ((unsigned int)((ch) - ' ') < 127u - ' ')
@@ -136,6 +131,8 @@ static void dump_hex(const rt_uint8_t *ptr, rt_size_t buflen)
     unsigned char *buf = (unsigned char *)ptr;
     int i, j;
 
+    RT_ASSERT(ptr != RT_NULL);
+    
     for (i = 0; i < buflen; i += 16)
     {
         rt_kprintf("%08X: ", i);
@@ -153,10 +150,26 @@ static void dump_hex(const rt_uint8_t *ptr, rt_size_t buflen)
         rt_kprintf("\n");
     }
 }
+
+static void rt_tcpdump_ip_mess_print(struct pbuf *p)
+{
+    rt_uint8_t *buf = (rt_uint8_t *)rt_malloc(p->tot_len);
+    
+    RT_ASSERT(buf != RT_NULL);
+    
+    pbuf_copy_partial(p, buf, p->tot_len, 0);
+    
+    dump_hex(buf, p->tot_len);
+    
+    rt_free(buf);
+}
+
 #endif
 
 static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
 {
+    RT_ASSERT(netif != RT_NULL);
+    
     if (p != RT_NULL)
     {
         pbuf_ref(p);
@@ -166,12 +179,13 @@ static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
             pbuf_free(p);
         }
     }
-//    rt_kprintf("pkt_count: %d\n", pkt_count);
     return link_output(netif, p);
 }
 
 static err_t _netif_input(struct pbuf *p, struct netif *inp)
 {
+    RT_ASSERT(inp != RT_NULL);
+    
     if (p != RT_NULL)
     {
         pbuf_ref(p);
@@ -180,8 +194,26 @@ static err_t _netif_input(struct pbuf *p, struct netif *inp)
             pbuf_free(p);
         }
     }
-//    rt_kprintf("pkt_count: %d\n", pkt_count);
     return input(p, inp);
+}
+
+static void rt_tcpdump_pcap_file_header_create(struct rt_pcap_file_header *file_header)
+{
+    file_header->magic = PCAP_FILE_ID;                  
+    file_header->version_major = PCAP_VERSION_MAJOR;    
+    file_header->version_minor = PCAP_VERSION_MINOR;    
+    file_header->thiszone = GREENWICH_MEAN_TIME;        
+    file_header->sigfigs = PRECISION_OF_TIME_STAMP;     
+    file_header->snaplen = MAX_LENTH_OF_CAPTURE_PKG;    
+    file_header->linktype = ETHERNET;                   
+}
+
+static void rt_tcpdump_pcap_pkthdr_create(struct rt_pkthdr *pkthdr, struct pbuf *p)
+{
+    pkthdr->ts.tv_sec  = rt_tick_get() / TICK_1_MS;   
+    pkthdr->ts.tv_msec = rt_tick_get() % TICK_1_MS;   
+    pkthdr->caplen = p->tot_len;                       
+    pkthdr->len = p->tot_len;                                             
 }
 
 static rt_err_t rt_tcpdump_pcap_file_write(void *buf, int len)
@@ -220,78 +252,18 @@ static rt_err_t rt_tcpdump_pcap_file_write(void *buf, int len)
         close(fd);
         return -RT_ERROR;
     }
-    
+
     return RT_EOK;
-}
-
-static void rt_header_to_u8(struct rt_pcap_file_header *file_header, rt_uint8_t *buf)
-{
-    union rt_u32_data u32_data;
-    union rt_u16_data u16_data;
-    int k, i, j;
-
-    rt_uint16_t *p16 = (rt_uint16_t *)file_header + 2;
-    rt_uint32_t *p32 = (rt_uint32_t *)file_header + 2;
-
-    /* struct rt_pcap_file_header. magic */
-    u32_data.u32byte = 0;
-    u32_data.u32byte = file_header->magic;
-    for (k = 3; k != -1; k--)
-        buf[k] = u32_data.a[k];
-
-    /* struct rt_pcap_file_header. version_major & version_minor*/
-    for (i = 0, j = 4; i < 2; i++)
-    {
-        u16_data.u16byte = 0;
-        u16_data.u16byte = *(p16 + i);
-        for (k = 1; k != -1; k--)
-        {
-            buf[k + j] = u16_data.a[k];
-        }
-        j += 2;
-    }
-
-    /* struct rt_pcap_header.thiszone ~ linktype */
-    for (i = 0, j = 8; i < 4; i++)
-    {
-        u32_data.u32byte = 0;
-        u32_data.u32byte = *(p32 + i);
-        for (k = 3; k != -1; k--)
-        {
-            buf[k + j] = u32_data.a[k];
-        }
-        j += 4;
-    }
-}
-
-static void rt_pkthdr_to_u8(struct rt_pkthdr *pkthdr, rt_uint8_t *buf)
-{
-    union rt_u32_data u32_data;
-    int k, i, j;
-
-    /* struct rt_pcap_header */
-    for (i = 0, j = 0; i < 4; i++)
-    {
-        u32_data.u32byte = 0;
-        u32_data.u32byte = *((rt_uint32_t *)pkthdr + i);
-        for (k = 3; k != -1; k--)
-        {
-            buf[k + j] = u32_data.a[k];
-        }
-        j += 4;
-    }
 }
 
 static rt_err_t rt_tcpdump_pcap_file_init(void)
 {
     struct rt_pcap_file_header file_header;
-    rt_uint8_t buf[PCAP_FILE_HEADER_SIZE] = {0};
 
-    PACP_FILE_HEADER_CREEATE(&file_header);
-
+    rt_tcpdump_pcap_file_header_create(&file_header);
+    
 #ifdef TCPDUMP_DEBUG
-    rt_header_to_u8(&file_header, buf);
-    dump_hex(buf, sizeof(buf));
+    dump_hex((rt_uint8_t *)&file_header, PCAP_FILE_HEADER_SIZE);
 #endif
 
     if (rt_tcpdump_pcap_file_write(&file_header, sizeof(file_header)) != RT_EOK)
@@ -313,8 +285,6 @@ static void rt_tcpdump_thread_entry(void *param)
     file_status.st_size = 0;
 
     rt_uint8_t buf[PCAP_PKTHDR_SIZE] = {0};
-    
-    rt_uint8_t *ip_mess, *ptr;
     rt_uint8_t ip_len;
 
     while (1)
@@ -330,20 +300,20 @@ static void rt_tcpdump_thread_entry(void *param)
             p = pbuf;
             ip_len = p->tot_len;
 
-            if (init == 1)             
+            if (init == 1)
             {
                 rt_kprintf("file is new, and init!\n");
                 rt_tcpdump_pcap_file_init();
                 init = 0;
             }
-            
+
             if (name_change == 1)       //  msh/> change file name
             {
                 dbg_log(DBG_INFO, "name is change\n");
                 rt_tcpdump_pcap_file_init();
                 name_change = 0;
             }
-            
+
             if (close_flag == 1)        //  Only determine if a file of the same name
             {
                 rt_kprintf("filename: %s\n", filename);
@@ -354,34 +324,22 @@ static void rt_tcpdump_thread_entry(void *param)
                     close_flag = 0;
                 }
             }
-            PACP_PKTHDR_CREEATE(&pkthdr, p);
-            rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
 
-#ifdef TCPDUMP_DEBUG
-            rt_pkthdr_to_u8(&pkthdr, buf);
-            dump_hex(buf, 16);
-            ptr = rt_malloc(ip_len);
-            if (ptr == RT_NULL)
-            {
-                rt_kprintf("error\n");
-                return;
-            }
-#endif
-            ip_mess = p->payload;
+            rt_tcpdump_pcap_pkthdr_create(&pkthdr, p);
+            rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
+        
+        #ifdef TCPDUMP_DEBUG
+            dump_hex((rt_uint8_t *)&pkthdr, PCAP_PKTHDR_SIZE);
+            rt_tcpdump_ip_mess_print(p);
+        #endif
+            
             while (p)
-            {
-#ifdef TCPDUMP_DEBUG
-                rt_memcpy(ptr, ip_mess, p->len);
-#endif
-                rt_tcpdump_pcap_file_write(ip_mess, p->len);
-                ip_mess += p->len;
+            {                 
+                rt_tcpdump_pcap_file_write(p->payload, p->len);
                 p = p->next;
             }
             pbuf_free(pbuf);
-#ifdef TCPDUMP_DEBUG
-            dump_hex(ptr, ip_len);
-            rt_free(ptr);
-#endif
+
             if (pkt_count >= count)
             {
                 stop_count = 0;
@@ -389,8 +347,8 @@ static void rt_tcpdump_thread_entry(void *param)
                 rt_kprintf("pkt_count reach. fd: %d\n", fd);
                 close(fd);
                 pkt_count = 0;
-            }     
-        }  
+            }
+        }
         
         else
         {
@@ -500,12 +458,12 @@ int tcpdump_f(int argc, char *argv[])
     stop_count = 1;
     rt_tcpdump_init();
     fd = -1;
-    return 0;    
+    return 0;
 }
 MSH_CMD_EXPORT(tcpdump_f, my command with args);
 
 int tcpdump_c(int argc, char *argv[])
-{  
+{
     if (argc != 2)
     {
         dbg_log(DBG_INFO, "please enter the number of captured packets\n");
@@ -514,9 +472,9 @@ int tcpdump_c(int argc, char *argv[])
 
     count = atoi(argv[1]);
     stop_count = 1;
-    
+
     dbg_log(DBG_INFO, "numbers of pkt: %d\n", count);
-    
+
     rt_tcpdump_init();
     fd = -1;
     close_flag = 1;
