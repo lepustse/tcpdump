@@ -61,7 +61,6 @@ struct rt_pkthdr
 };
 
 #define TCPDUMP_MAX_MSG             (10)
-//#define TCPDUMP_DEFAULT_NAME        ("sample.pcap")
 #define PCAP_FILE_HEADER_SIZE       (24)
 #define PCAP_PKTHDR_SIZE            (16)
 
@@ -100,25 +99,6 @@ struct rt_pkthdr
 #define LINKTYPE_PRISM_HEADER   119             /* 802.11+Prism II monitor mode */
 #define LINKTYPE_AIRONET_HEADER 120             /* FreeBSD Aironet driver stuff */
 
-//#define PACP_FILE_HEADER_CREEATE(_head)             \
-//    do {                                            \
-//    (_head)->magic = PCAP_FILE_ID;                  \
-//    (_head)->version_major = PCAP_VERSION_MAJOR;    \
-//    (_head)->version_minor = PCAP_VERSION_MINOR;    \
-//    (_head)->thiszone = GREENWICH_MEAN_TIME;        \
-//    (_head)->sigfigs = PRECISION_OF_TIME_STAMP;     \
-//    (_head)->snaplen = MAX_LENTH_OF_CAPTURE_PKG;    \
-//    (_head)->linktype = ETHERNET;                   \
-//    } while (0)
-
-//#define PACP_PKTHDR_CREEATE(_head, _p)                   \
-//    do {                                                 \
-//    (_head)->ts.tv_sec  = (rt_tick_get() / TICK_1_MS);   \
-//    (_head)->ts.tv_msec = (rt_tick_get() % TICK_1_MS);   \
-//    (_head)->caplen = _p->tot_len;                       \
-//    (_head)->len = _p->tot_len;                          \
-//    } while (0)
-
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
 static netif_linkoutput_fn link_output;
@@ -127,15 +107,6 @@ static const char *eth;
 static const char *name;
 
 static netif_input_fn input;
-
-static int fd = -1;
-static int close_flag;
-static int count;
-static int pkt_count;
-static int name_change;
-static int stop_count = 1;
-
-void rt_tcpdump_deinit(void);
 
 //#define TCPDUMP_DEBUG
 #ifdef  TCPDUMP_DEBUG
@@ -179,11 +150,6 @@ static void rt_tcpdump_ip_mess_print(struct pbuf *p)
 }
 #endif
 
-//static void linkoutput_init(struct netif *netif)
-//{
-//    
-//}
-
 static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
 {
     RT_ASSERT(netif != RT_NULL);
@@ -218,7 +184,7 @@ static err_t _netif_input(struct pbuf *p, struct netif *inp)
 static void rt_tcpdump_pcap_pkthdr_create(struct rt_pkthdr *pkthdr, struct pbuf *p)
 {
     pkthdr->ts.tv_sec  = rt_tick_get() / RT_TICK_PER_SECOND;   
-    pkthdr->ts.tv_msec = rt_tick_get() / (RT_TICK_PER_SECOND * 1000);   
+    pkthdr->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   
     pkthdr->caplen = p->tot_len;                       
     pkthdr->len = p->tot_len;                                             
 }
@@ -246,7 +212,7 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
         fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0);
         if (fd < 0)
         {
-            dbg_log(DBG_ERROR, "append. open file failed\n");
+            dbg_log(DBG_ERROR, "open file failed\n");
             return -RT_ERROR;
         }
     }
@@ -324,6 +290,10 @@ static void rt_tcpdump_thread_entry(void *param)
         else
         {
             rt_kprintf("tcp dump thread exit\n");
+            close(fd);
+            fd = -1;
+            if (filename != RT_NULL)
+                rt_free(filename);
             return;
         }
     }
@@ -352,18 +322,18 @@ int rt_tcpdump_init(void)
     device = (struct eth_device *)rt_device_find(eth);
     if (device == RT_NULL)
     {
-        rt_kprintf("device not find\n");
+        dbg_log(DBG_ERROR, "device not find\n");
         return -RT_ERROR;
     }
     if ((device->netif == RT_NULL) || (device->netif->linkoutput == RT_NULL))
     {
-        rt_kprintf("this device not eth\n");
+        dbg_log(DBG_ERROR, "this device not eth\n");
         return -RT_ERROR;
     }
     tcpdump_mb = rt_mb_create("tcpdump", TCPDUMP_MAX_MSG, RT_IPC_FLAG_FIFO);
     if (tcpdump_mb == RT_NULL)
     {
-        rt_kprintf("tcp dump mp create fail\n");
+        dbg_log(DBG_ERROR, "tcp dump mp create fail\n");
         return -RT_ERROR;
     }
     tid = rt_thread_create("tcp_dump", rt_tcpdump_thread_entry, RT_NULL, 2048, 10, 10);
@@ -371,7 +341,7 @@ int rt_tcpdump_init(void)
     {
         rt_mb_delete(tcpdump_mb);
         tcpdump_mb = RT_NULL;
-        rt_kprintf("tcp dump thread create fail\n");
+        dbg_log(DBG_ERROR, "tcp dump thread create fail\n");
         return -RT_ERROR;
     }
 
@@ -379,18 +349,18 @@ int rt_tcpdump_init(void)
     {
         filename = rt_strdup(name);
     }
-    rt_kprintf("name? %s\n", name);
     netif = device->netif;
+   
     level = rt_hw_interrupt_disable();
     link_output = netif->linkoutput;
     netif->linkoutput = _netif_linkoutput;
 
     input = netif->input;
     netif->input = _netif_input;
-
     rt_hw_interrupt_enable(level);
+    
     rt_thread_startup(tid);
-
+    rt_tcpdump_pcap_file_init();
     dbg_log(DBG_INFO, "tcpdump start!\n");
     
     return RT_EOK;
@@ -409,9 +379,6 @@ void rt_tcpdump_deinit(void)
     netif->linkoutput = link_output;
     netif->input = input;
     netif = RT_NULL;
-
-    close(fd);
-    fd = -1;
     
     rt_hw_interrupt_enable(level);
     rt_mb_delete(tcpdump_mb);
@@ -465,7 +432,7 @@ int rt_tcpdump_cmd_init(int argc, char *argv[])
     }
 
     rt_tcpdump_init();
-    rt_tcpdump_pcap_file_init();
+    
     return RT_EOK;    
 }
 MSH_CMD_EXPORT_ALIAS(rt_tcpdump_cmd_init, tcpdump, test optparse_short cmd.);
