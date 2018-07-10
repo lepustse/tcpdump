@@ -20,7 +20,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2018-07-05     never        the first version
+ * 2018-07-10     never        the first version
  */
 
 #include <rtthread.h>
@@ -102,13 +102,20 @@ struct rt_pkthdr
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
 static netif_linkoutput_fn link_output;
-static char *filename;
-static const char *eth;
-static const char *name;
-
 static netif_input_fn input;
 
-//#define TCPDUMP_DEBUG
+static const char *name;
+static char *filename;
+
+static const char *eth;
+static char *ethname;
+
+static int fd = -1;
+
+static void rt_tcpdump_filename_del(void);
+static void rt_tcpdump_ethname_del(void);
+
+#define TCPDUMP_DEBUG
 #ifdef  TCPDUMP_DEBUG
 #define __is_print(ch) ((unsigned int)((ch) - ' ') < 127u - ' ')
 static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
@@ -204,9 +211,9 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
         dbg_log(DBG_ERROR, "ip mess error and close file\n");
         close(fd);
         fd = -1;
+        return -RT_ERROR;
     }
 
-    rt_kprintf("fd? %d\n", fd);
     if (fd < 0)
     {
         fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0);
@@ -292,21 +299,33 @@ static void rt_tcpdump_thread_entry(void *param)
             rt_kprintf("tcp dump thread exit\n");
             close(fd);
             fd = -1;
-            if (filename != RT_NULL)
-                rt_free(filename);
+            rt_tcpdump_filename_del();
+            rt_tcpdump_ethname_del();
             return;
         }
     }
 }
 
-void rt_tcpdump_set_filename(const char *name)
+static void rt_tcpdump_filename_set(const char *name)
+{
+    filename = rt_strdup(name);
+}
+
+static void rt_tcpdump_filename_del(void)
 {
     if (filename != RT_NULL)
-    {
         rt_free(filename);
-    }
+}
 
-    filename = rt_strdup(name);
+static void rt_tcpdump_ethname_set(const char *eth)
+{
+    ethname = rt_strdup(eth);
+}
+
+static void rt_tcpdump_ethname_del(void)
+{
+    if (ethname != RT_NULL)
+        rt_free(ethname);
 }
 
 int rt_tcpdump_init(void)
@@ -345,10 +364,9 @@ int rt_tcpdump_init(void)
         return -RT_ERROR;
     }
 
-    if (filename == RT_NULL)
-    {
-        filename = rt_strdup(name);
-    }
+    rt_tcpdump_filename_set(name);
+    rt_tcpdump_ethname_set(eth);
+    
     netif = device->netif;
    
     level = rt_hw_interrupt_disable();
@@ -387,15 +405,14 @@ void rt_tcpdump_deinit(void)
     dbg_log(DBG_INFO, "tcpdump stop!\n");
 }
 
-#define  SHORT_CMD
-#if defined SHORT_CMD
 int rt_tcpdump_cmd_init(int argc, char *argv[])
 {
     int ch; 
     struct optparse options;
+    char stop = 0;
     
     optparse_init(&options, argv); 
-    while((ch = optparse(&options, "i:w:p::")) != -1)
+    while((ch = optparse(&options, "i:w:p::h::")) != -1)
     {
         ch = ch; 
         dbg_log(DBG_INFO, "optind = %d\n", options.optind);
@@ -404,85 +421,68 @@ int rt_tcpdump_cmd_init(int argc, char *argv[])
         case 2:
             if (options.optopt == 'p')
             {
+                stop = options.optopt;
                 rt_tcpdump_deinit();
-                dbg_log(DBG_INFO, "optind = %d\n", options.optind);
-                dbg_log(DBG_INFO, "optopt = %c\n", options.optopt);
+                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
+                dbg_log(DBG_LOG, "optopt = %c\n", options.optopt);
+            }
+            if (options.optopt == 'h')
+            {
+                rt_kprintf("\n");
+                rt_kprintf("-------------------------- help --------------------------\n");
+                rt_kprintf("-h: help\n");
+                rt_kprintf("-i: specify the network interface for listening\n");
+                rt_kprintf("tcpdump -i [] -w []\n");
+                rt_kprintf("-w: write the captured packets into an xxx.pcap file\n");
+                rt_kprintf("-p: stop capturing packets\n\n"); 
+                rt_kprintf("e.g.:\n");
+                rt_kprintf("specify a network adapter device and save to an X file\n");
+                rt_kprintf("tcpdump -i e0 -w sample.pcap\n\n");
+                rt_kprintf("save to X file only\n");
+                rt_kprintf("tcpdump -w sample.pcap\n\n");
+                rt_kprintf("stop capturing packets\n");
+                rt_kprintf("tcpdump -p\n");
+                rt_kprintf("help\n");
+                rt_kprintf("tcpdump -h\n");
+                rt_kprintf("--------------------------- end --------------------------\n");
+                rt_kprintf("\n");
             }
             break;
         case 3:
             if (options.optopt == 'i')
             {
                 eth = options.optarg;
-                dbg_log(DBG_INFO, "optind = %d\n", options.optind);
-                dbg_log(DBG_INFO, "optarg = %s\n", options.optarg);
+                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
+                dbg_log(DBG_LOG, "optarg = %s\n", options.optarg);
             }
             else
+            {    
                 eth = "e0";
-
+            }
+            
+            if (options.optopt == 'w')
+            {
+                name = options.optarg;
+                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
+                dbg_log(DBG_LOG, "optarg = %s\n", options.optarg);
+            }
             break;
         case 5:
             if (options.optopt == 'w')
                 name = options.optarg;
-                dbg_log(DBG_INFO, "optind = %d\n", options.optind);
-                dbg_log(DBG_INFO, "optarg = %s\n", options.optarg);
+                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
+                dbg_log(DBG_LOG, "optarg = %s\n", options.optarg);
             break;
         default:
             break;
         }
     }
 
+    if (stop == 'p')
+        return RT_EOK;
+    
     rt_tcpdump_init();
     
     return RT_EOK;    
 }
 MSH_CMD_EXPORT_ALIAS(rt_tcpdump_cmd_init, tcpdump, test optparse_short cmd.);
-
-#elif defined LONG_CMD 
-static struct optparse_long long_opts[] = 
-{
-    {"aaa", 'a', OPTPARSE_NONE    }, 
-    {"start", 's', OPTPARSE_REQUIRED},
-    {"stop", 'p', OPTPARSE_OPTIONAL},
-    {"ccc", 'c', OPTPARSE_OPTIONAL}, 
-    { NULL,  0,  OPTPARSE_NONE    }
-};
-
-int rt_tcpdump_cmd_init(int argc, char *argv[])
-{
-    int ch; 
-    int option_index; 
-    struct optparse options;
-    
-    optparse_init(&options, argv); 
-    while((ch = optparse_long(&options, long_opts, &option_index)) != -1)
-    {
-        ch = ch; 
-        
-        switch(options.optopt)
-        {
-        case 's':
-            name = options.optarg;
-            rt_tcpdump_init();
-            rt_tcpdump_pcap_file_init();
-            break;
-        case 'p':
-            close(fd);
-            fd = -1;
-            rt_tcpdump_deinit();
-            break;
-        default:
-            break;
-        }
-        
-        rt_kprintf("\n"); 
-        rt_kprintf("optopt = %c\n", options.optopt);
-        rt_kprintf("optarg = %s\n", options.optarg);
-        rt_kprintf("optind = %d\n", options.optind);
-        rt_kprintf("option_index = %d\n", option_index); 
-    }
-    rt_kprintf("\n");
-    
-    return RT_EOK; 
-}
-MSH_CMD_EXPORT_ALIAS(rt_tcpdump_cmd_init, tcpdump, test optparse_short cmd.);
-#endif
