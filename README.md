@@ -7,7 +7,7 @@
 
 - 依赖 [optparse](https://github.com/liu2guang/optparse) 软件包
 - 依赖 DFS 文件系统
-
+- RT-Thread 3.0+，对bsp无依赖
 
 ## 2、使用
 
