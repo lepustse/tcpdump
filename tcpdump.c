@@ -20,7 +20,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2018-07-10     never        the first version
+ * 2018-07-11     never        the first version
  */
 
 #include <rtthread.h>
@@ -35,30 +35,6 @@
 #define DBG_LEVEL         DBG_INFO
 #define DBG_COLOR
 #include <rtdbg.h>
-
-struct rt_pcap_file_header
-{
-    rt_uint32_t magic;           // 0xa1b2c3d4
-    rt_uint16_t version_major;   // 0x0200
-    rt_uint16_t version_minor;   // 0x0400
-    rt_int32_t thiszone;         // Greenwich Mean Time
-    rt_uint32_t sigfigs;         //
-    rt_uint32_t snaplen;         //
-    rt_uint32_t linktype;        // ethernet
-};
-
-struct rt_timeval
-{
-    rt_uint32_t tv_sec;          // os_tick
-    rt_uint32_t tv_msec;         // os_tick
-};
-
-struct rt_pkthdr
-{
-    struct rt_timeval ts;
-    rt_uint32_t caplen;
-    rt_uint32_t len;
-};
 
 #define TCPDUMP_MAX_MSG             (10)
 #define PCAP_FILE_HEADER_SIZE       (24)
@@ -84,7 +60,7 @@ struct rt_pkthdr
 #define LINKTYPE_FDDI               (10)
 #define LINKTYPE_PPP_HDLC           (50)              /* PPP in HDLC-like framing */
 #define LINKTYPE_PPP_ETHER          (51)              /* NetBSD PPP-over-Ethernet */
-#define LINKTYPE_ATM_RFC1483        (100)            /* LLC/SNAP-encapsulated ATM */
+#define LINKTYPE_ATM_RFC1483        (100)             /* LLC/SNAP-encapsulated ATM */
 #define LINKTYPE_RAW                (101)             /* raw IP */
 #define LINKTYPE_SLIP_BSDOS         (102)             /* BSD/OS SLIP BPF header */
 #define LINKTYPE_PPP_BSDOS          (103)             /* BSD/OS PPP BPF header */
@@ -99,15 +75,15 @@ struct rt_pkthdr
 #define LINKTYPE_PRISM_HEADER       (119)             /* 802.11+Prism II monitor mode */
 #define LINKTYPE_AIRONET_HEADER     (120)             /* FreeBSD Aironet driver stuff */
 
-#define PACP_FILE_HEADER_CREATE(_head) \
-do {                                    \
-(_head)->magic = 0xa1b2c3d4;            \
-(_head)->version_major = 0x200;         \
-(_head)->version_minor = 0x400;         \
-(_head)->thiszone = 0;                  \
-(_head)->sigfigs = 0;                   \
-(_head)->snaplen = 0xff;                \
-(_head)->linktype = 1;                  \
+#define PACP_FILE_HEADER_CREATE(_head)                          \
+do {                                                            \
+(_head)->magic = 0xa1b2c3d4;                                    \
+(_head)->version_major = 0x200;                                 \
+(_head)->version_minor = 0x400;                                 \
+(_head)->thiszone = 0;                                          \
+(_head)->sigfigs = 0;                                           \
+(_head)->snaplen = 0xff;                                        \
+(_head)->linktype = 1;                                          \
 } while (0)
 
 #define PACP_PKTHDR_CREATE(_head, _p)                           \
@@ -117,6 +93,30 @@ do {                                    \
     (_head)->caplen = p->tot_len;                               \
     (_head)->len = p->tot_len;                                  \
     } while (0) 
+
+struct rt_pcap_file_header
+{
+    rt_uint32_t magic;                         
+    rt_uint16_t version_major;   
+    rt_uint16_t version_minor;  
+    rt_int32_t thiszone;        
+    rt_uint32_t sigfigs;        
+    rt_uint32_t snaplen;      
+    rt_uint32_t linktype;      
+};
+
+struct rt_timeval
+{
+    rt_uint32_t tv_sec;       
+    rt_uint32_t tv_msec;     
+};
+
+struct rt_pkthdr
+{
+    struct rt_timeval ts;
+    rt_uint32_t caplen;
+    rt_uint32_t len;
+};
 
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
@@ -271,13 +271,13 @@ static void rt_tcpdump_thread_entry(void *param)
     struct pbuf *pbuf, *p;
     struct rt_pkthdr pkthdr;
     rt_uint32_t mbval;
-    struct stat file_status;
-    file_status.st_size = 0;
-    
+
     while (1)
     {
         if (rt_mb_recv(tcpdump_mb, &mbval, RT_WAITING_FOREVER) == RT_EOK)
         {
+            RT_ASSERT(pbuf != RT_NULL);
+            
             pbuf = (struct pbuf *)mbval;
             p = pbuf;
 
@@ -297,7 +297,6 @@ static void rt_tcpdump_thread_entry(void *param)
             }
             pbuf_free(pbuf);
         }
-        
         else
         {
             dbg_log(DBG_INFO, "tcp dump thread exit\n");
@@ -344,6 +343,7 @@ int rt_tcpdump_init(void)
     {
         return RT_EOK;
     }
+    
     device = (struct eth_device *)rt_device_find(eth);
     if (device == RT_NULL)
     {
@@ -355,12 +355,14 @@ int rt_tcpdump_init(void)
         dbg_log(DBG_ERROR, "this device not eth\n");
         return -RT_ERROR;
     }
+    
     tcpdump_mb = rt_mb_create("tcpdump", TCPDUMP_MAX_MSG, RT_IPC_FLAG_FIFO);
     if (tcpdump_mb == RT_NULL)
     {
         dbg_log(DBG_ERROR, "tcp dump mp create fail\n");
         return -RT_ERROR;
     }
+    
     tid = rt_thread_create("tcp_dump", rt_tcpdump_thread_entry, RT_NULL, 2048, 10, 10);
     if (tid == RT_NULL)
     {
@@ -398,6 +400,7 @@ void rt_tcpdump_deinit(void)
     {
         return;
     }
+    
     level = rt_hw_interrupt_disable();
 
     netif->linkoutput = link_output;
@@ -444,7 +447,7 @@ static int rt_tcpdump_cmd_init(int argc, char *argv[])
     struct optparse options;
     char stop = 0;
     int flag = 0;
-    
+
     optparse_init(&options, argv); 
     while((ch = optparse(&options, "phi::w::")) != -1)
     {
