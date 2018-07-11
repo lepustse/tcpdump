@@ -71,33 +71,52 @@ struct rt_pkthdr
 #define PRECISION_OF_TIME_STAMP     (0)
 #define MAX_LENTH_OF_CAPTURE_PKG    (0xFFFF)
 
-#define LINKTYPE_NULL           0
-#define LINKTYPE_ETHERNET       1               /* also for 100Mb and up */
-#define LINKTYPE_EXP_ETHERNET   2               /* 3Mb experimental Ethernet */
-#define LINKTYPE_AX25           3
-#define LINKTYPE_PRONET         4
-#define LINKTYPE_CHAOS          5
-#define LINKTYPE_TOKEN_RING     6               /* DLT_IEEE802 is used for Token Ring */
-#define LINKTYPE_ARCNET         7
-#define LINKTYPE_SLIP           8
-#define LINKTYPE_PPP            9
-#define LINKTYPE_FDDI           10
-#define LINKTYPE_PPP_HDLC       50              /* PPP in HDLC-like framing */
-#define LINKTYPE_PPP_ETHER      51              /* NetBSD PPP-over-Ethernet */
-#define LINKTYPE_ATM_RFC1483    100             /* LLC/SNAP-encapsulated ATM */
-#define LINKTYPE_RAW            101             /* raw IP */
-#define LINKTYPE_SLIP_BSDOS     102             /* BSD/OS SLIP BPF header */
-#define LINKTYPE_PPP_BSDOS      103             /* BSD/OS PPP BPF header */
-#define LINKTYPE_C_HDLC         104             /* Cisco HDLC */
-#define LINKTYPE_IEEE802_11     105             /* IEEE 802.11 (wireless) */
-#define LINKTYPE_ATM_CLIP       106             /* Linux Classical IP over ATM */
-#define LINKTYPE_LOOP           108             /* OpenBSD loopback */
-#define LINKTYPE_LINUX_SLL      113             /* Linux cooked socket capture */
-#define LINKTYPE_LTALK          114             /* Apple LocalTalk hardware */
-#define LINKTYPE_ECONET         115             /* Acorn Econet */
-#define LINKTYPE_CISCO_IOS      118             /* For Cisco-internal use */
-#define LINKTYPE_PRISM_HEADER   119             /* 802.11+Prism II monitor mode */
-#define LINKTYPE_AIRONET_HEADER 120             /* FreeBSD Aironet driver stuff */
+#define LINKTYPE_NULL               (0)
+#define LINKTYPE_ETHERNET           (1)               /* also for 100Mb and up */
+#define LINKTYPE_EXP_ETHERNET       (2)               /* 3Mb experimental Ethernet */
+#define LINKTYPE_AX25               (3)
+#define LINKTYPE_PRONET             (4)
+#define LINKTYPE_CHAOS              (5)
+#define LINKTYPE_TOKEN_RING         (6)               /* DLT_IEEE802 is used for Token Ring */
+#define LINKTYPE_ARCNET             (7)
+#define LINKTYPE_SLIP               (8)
+#define LINKTYPE_PPP                (9)
+#define LINKTYPE_FDDI               (10)
+#define LINKTYPE_PPP_HDLC           (50)              /* PPP in HDLC-like framing */
+#define LINKTYPE_PPP_ETHER          (51)              /* NetBSD PPP-over-Ethernet */
+#define LINKTYPE_ATM_RFC1483        (100)            /* LLC/SNAP-encapsulated ATM */
+#define LINKTYPE_RAW                (101)             /* raw IP */
+#define LINKTYPE_SLIP_BSDOS         (102)             /* BSD/OS SLIP BPF header */
+#define LINKTYPE_PPP_BSDOS          (103)             /* BSD/OS PPP BPF header */
+#define LINKTYPE_C_HDLC             (104)             /* Cisco HDLC */
+#define LINKTYPE_IEEE802_11         (105)             /* IEEE 802.11 (wireless) */
+#define LINKTYPE_ATM_CLIP           (106)             /* Linux Classical IP over ATM */
+#define LINKTYPE_LOOP               (108)             /* OpenBSD loopback */
+#define LINKTYPE_LINUX_SLL          (113)             /* Linux cooked socket capture */
+#define LINKTYPE_LTALK              (114)             /* Apple LocalTalk hardware */
+#define LINKTYPE_ECONET             (115)             /* Acorn Econet */
+#define LINKTYPE_CISCO_IOS          (118)             /* For Cisco-internal use */
+#define LINKTYPE_PRISM_HEADER       (119)             /* 802.11+Prism II monitor mode */
+#define LINKTYPE_AIRONET_HEADER     (120)             /* FreeBSD Aironet driver stuff */
+
+#define PACP_FILE_HEADER_CREATE(_head) \
+do {                                    \
+(_head)->magic = 0xa1b2c3d4;            \
+(_head)->version_major = 0x200;         \
+(_head)->version_minor = 0x400;         \
+(_head)->thiszone = 0;                  \
+(_head)->sigfigs = 0;                   \
+(_head)->snaplen = 0xff;                \
+(_head)->linktype = 1;                  \
+} while (0)
+
+#define PACP_PKTHDR_CREATE(_head, _p)                           \
+    do {                                                        \
+    (_head)->ts.tv_sec = rt_tick_get() / RT_TICK_PER_SECOND;    \
+    (_head)->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   \
+    (_head)->caplen = p->tot_len;                               \
+    (_head)->len = p->tot_len;                                  \
+    } while (0) 
 
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
@@ -115,8 +134,8 @@ static int fd = -1;
 static void rt_tcpdump_filename_del(void);
 static void rt_tcpdump_ethname_del(void);
 
-#define TCPDUMP_DEBUG
-#ifdef  TCPDUMP_DEBUG
+
+#ifdef  TCPDUMP_DUMP
 #define __is_print(ch) ((unsigned int)((ch) - ' ') < 127u - ' ')
 static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
 {
@@ -188,13 +207,13 @@ static err_t _netif_input(struct pbuf *p, struct netif *inp)
     return input(p, inp);
 }
 
-static void rt_tcpdump_pcap_pkthdr_create(struct rt_pkthdr *pkthdr, struct pbuf *p)
-{
-    pkthdr->ts.tv_sec  = rt_tick_get() / RT_TICK_PER_SECOND;   
-    pkthdr->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   
-    pkthdr->caplen = p->tot_len;                       
-    pkthdr->len = p->tot_len;                                             
-}
+//static void rt_tcpdump_pcap_pkthdr_create(struct rt_pkthdr *pkthdr, struct pbuf *p)
+//{
+//    pkthdr->ts.tv_sec  = rt_tick_get() / RT_TICK_PER_SECOND;   
+//    pkthdr->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   
+//    pkthdr->caplen = p->tot_len;                       
+//    pkthdr->len = p->tot_len;                                             
+//}
 
 static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 {
@@ -238,16 +257,19 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 /* write pcap file header */
 static rt_err_t rt_tcpdump_pcap_file_init(void)
 {
-    static const struct rt_pcap_file_header file_header = 
-    {
-        .magic = PCAP_FILE_ID,                  
-        .version_major = PCAP_VERSION_MAJOR,    
-        .version_minor = PCAP_VERSION_MINOR,    
-        .thiszone = GREENWICH_MEAN_TIME,        
-        .sigfigs = PRECISION_OF_TIME_STAMP,     
-        .snaplen = MAX_LENTH_OF_CAPTURE_PKG,    
-        .linktype = LINKTYPE_ETHERNET,
-    };
+//    static const struct rt_pcap_file_header file_header = 
+//    {
+//        .magic = PCAP_FILE_ID,                  
+//        .version_major = PCAP_VERSION_MAJOR,    
+//        .version_minor = PCAP_VERSION_MINOR,    
+//        .thiszone = GREENWICH_MEAN_TIME,        
+//        .sigfigs = PRECISION_OF_TIME_STAMP,     
+//        .snaplen = MAX_LENTH_OF_CAPTURE_PKG,    
+//        .linktype = LINKTYPE_ETHERNET,
+//    };
+    struct rt_pcap_file_header file_header;
+
+    PACP_FILE_HEADER_CREATE(&file_header);
     
 #ifdef TCPDUMP_DEBUG
     hex_dump((rt_uint8_t *)&file_header, PCAP_FILE_HEADER_SIZE);
@@ -278,7 +300,7 @@ static void rt_tcpdump_thread_entry(void *param)
             p = pbuf;
 
             /* write pkthdr */
-            rt_tcpdump_pcap_pkthdr_create(&pkthdr, p);
+            PACP_PKTHDR_CREATE(&pkthdr, p);
             rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
 
         #ifdef TCPDUMP_DEBUG
@@ -296,7 +318,7 @@ static void rt_tcpdump_thread_entry(void *param)
         
         else
         {
-            rt_kprintf("tcp dump thread exit\n");
+            dbg_log(DBG_INFO, "tcp dump thread exit\n");
             close(fd);
             fd = -1;
             rt_tcpdump_filename_del();
@@ -341,7 +363,7 @@ int rt_tcpdump_init(void)
     device = (struct eth_device *)rt_device_find(eth);
     if (device == RT_NULL)
     {
-        dbg_log(DBG_ERROR, "device not find\n");
+        dbg_log(DBG_ERROR, "network interface card device not find\n");
         return -RT_ERROR;
     }
     if ((device->netif == RT_NULL) || (device->netif->linkoutput == RT_NULL))
@@ -405,17 +427,48 @@ void rt_tcpdump_deinit(void)
     dbg_log(DBG_INFO, "tcpdump stop!\n");
 }
 
-int rt_tcpdump_cmd_init(int argc, char *argv[])
+static void rt_tcpdump_help_info_print(void)
+{
+    rt_kprintf("\n");
+    rt_kprintf("-------------------------- help --------------------------\n");
+    rt_kprintf("-h: help\n");
+    rt_kprintf("-i: specify the network interface for listening\n");
+    rt_kprintf("-w: write the captured packets into an xxx.pcap file\n");
+    rt_kprintf("-p: stop capturing packets\n\n"); 
+    rt_kprintf("e.g.:\n");
+    rt_kprintf("specify a network adapter device and save to an X file\n");
+    rt_kprintf("tcpdump -ie0 -wsample.pcap\n\n");
+    rt_kprintf("save to X file only\n");
+    rt_kprintf("tcpdump -wsample.pcap\n\n");
+    rt_kprintf("stop capturing packets\n");
+    rt_kprintf("tcpdump -p\n");
+    rt_kprintf("help\n");
+    rt_kprintf("tcpdump -h\n");
+    rt_kprintf("--------------------------- end --------------------------\n");
+    rt_kprintf("\n");
+}
+
+static void rt_tcpdump_error_info_deal(void)
+{
+    dbg_log(DBG_ERROR, "tcpdump command is incorrect, please refer to the help information\n");
+    rt_tcpdump_help_info_print();
+}
+
+static int rt_tcpdump_cmd_init(int argc, char *argv[])
 {
     int ch; 
     struct optparse options;
     char stop = 0;
+    int flag = 0;
+    int tind = 0;
     
     optparse_init(&options, argv); 
-    while((ch = optparse(&options, "i:w:p::h::")) != -1)
+    while((ch = optparse(&options, "phi::w::")) != -1)
     {
+        flag = 1;
         ch = ch; 
-        dbg_log(DBG_INFO, "optind = %d\n", options.optind);
+        dbg_log(DBG_LOG, "optind = %d\n", options.optind);
+        
         switch(options.optind)
         {
         case 2:
@@ -423,63 +476,74 @@ int rt_tcpdump_cmd_init(int argc, char *argv[])
             {
                 stop = options.optopt;
                 rt_tcpdump_deinit();
-                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
-                dbg_log(DBG_LOG, "optopt = %c\n", options.optopt);
             }
-            if (options.optopt == 'h')
+            else if (options.optopt == 'h')
             {
-                rt_kprintf("\n");
-                rt_kprintf("-------------------------- help --------------------------\n");
-                rt_kprintf("-h: help\n");
-                rt_kprintf("-i: specify the network interface for listening\n");
-                rt_kprintf("tcpdump -i [] -w []\n");
-                rt_kprintf("-w: write the captured packets into an xxx.pcap file\n");
-                rt_kprintf("-p: stop capturing packets\n\n"); 
-                rt_kprintf("e.g.:\n");
-                rt_kprintf("specify a network adapter device and save to an X file\n");
-                rt_kprintf("tcpdump -i e0 -w sample.pcap\n\n");
-                rt_kprintf("save to X file only\n");
-                rt_kprintf("tcpdump -w sample.pcap\n\n");
-                rt_kprintf("stop capturing packets\n");
-                rt_kprintf("tcpdump -p\n");
-                rt_kprintf("help\n");
-                rt_kprintf("tcpdump -h\n");
-                rt_kprintf("--------------------------- end --------------------------\n");
-                rt_kprintf("\n");
+                rt_tcpdump_help_info_print();
+            }
+            else if (options.optopt == 'i')
+            {
+                if (options.optarg == RT_NULL)
+                {    
+                    rt_tcpdump_error_info_deal();
+                    return RT_ERROR;
+                }
+                eth = options.optarg;                
+            }    
+            else if (options.optopt == 'w')
+            {
+                if (options.optarg == RT_NULL)
+                {    
+                    rt_tcpdump_error_info_deal();
+                    return RT_ERROR;
+                }
+                eth = "e0";
+                name = options.optarg;
+            }    
+            else
+            {
+                rt_tcpdump_error_info_deal();
+                return RT_ERROR;
             }
             break;
+        
         case 3:
-            if (options.optopt == 'i')
+            if (options.optopt == 'w')
             {
-                eth = options.optarg;
-                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
-                dbg_log(DBG_LOG, "optarg = %s\n", options.optarg);
+                if (options.optarg == RT_NULL)
+                {
+                    rt_tcpdump_error_info_deal();
+                    return RT_ERROR;
+                }
+                name = options.optarg;
             }
             else
-            {    
-                eth = "e0";
-            }
-            
-            if (options.optopt == 'w')
             {
-                name = options.optarg;
-                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
-                dbg_log(DBG_LOG, "optarg = %s\n", options.optarg);
+                rt_tcpdump_error_info_deal();
+                return RT_ERROR;
             }
             break;
-        case 5:
-            if (options.optopt == 'w')
-                name = options.optarg;
-                dbg_log(DBG_LOG, "optind = %d\n", options.optind);
-                dbg_log(DBG_LOG, "optarg = %s\n", options.optarg);
-            break;
+            
         default:
             break;
         }
     }
 
+    if (flag == 0)
+    {
+        rt_tcpdump_error_info_deal();
+        return RT_ERROR;        
+    }
+    
     if (stop == 'p')
         return RT_EOK;
+    
+    if ((eth != RT_NULL) && (name == RT_NULL))
+    {
+        dbg_log(DBG_ERROR, "please enter a filename\n");
+        rt_tcpdump_help_info_print();
+        return RT_ERROR;         
+    }
     
     rt_tcpdump_init();
     
