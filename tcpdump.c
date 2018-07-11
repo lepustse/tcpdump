@@ -135,7 +135,7 @@ static void rt_tcpdump_filename_del(void);
 static void rt_tcpdump_ethname_del(void);
 
 
-#ifdef  TCPDUMP_DUMP
+#ifdef  TCPDUMP_PRINT
 #define __is_print(ch) ((unsigned int)((ch) - ' ') < 127u - ' ')
 static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
 {
@@ -207,14 +207,6 @@ static err_t _netif_input(struct pbuf *p, struct netif *inp)
     return input(p, inp);
 }
 
-//static void rt_tcpdump_pcap_pkthdr_create(struct rt_pkthdr *pkthdr, struct pbuf *p)
-//{
-//    pkthdr->ts.tv_sec  = rt_tick_get() / RT_TICK_PER_SECOND;   
-//    pkthdr->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   
-//    pkthdr->caplen = p->tot_len;                       
-//    pkthdr->len = p->tot_len;                                             
-//}
-
 static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 {
     int length;
@@ -257,21 +249,11 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 /* write pcap file header */
 static rt_err_t rt_tcpdump_pcap_file_init(void)
 {
-//    static const struct rt_pcap_file_header file_header = 
-//    {
-//        .magic = PCAP_FILE_ID,                  
-//        .version_major = PCAP_VERSION_MAJOR,    
-//        .version_minor = PCAP_VERSION_MINOR,    
-//        .thiszone = GREENWICH_MEAN_TIME,        
-//        .sigfigs = PRECISION_OF_TIME_STAMP,     
-//        .snaplen = MAX_LENTH_OF_CAPTURE_PKG,    
-//        .linktype = LINKTYPE_ETHERNET,
-//    };
     struct rt_pcap_file_header file_header;
 
     PACP_FILE_HEADER_CREATE(&file_header);
     
-#ifdef TCPDUMP_DEBUG
+#ifdef TCPDUMP_PRINT
     hex_dump((rt_uint8_t *)&file_header, PCAP_FILE_HEADER_SIZE);
 #endif
 
@@ -303,7 +285,7 @@ static void rt_tcpdump_thread_entry(void *param)
             PACP_PKTHDR_CREATE(&pkthdr, p);
             rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
 
-        #ifdef TCPDUMP_DEBUG
+        #ifdef TCPDUMP_PRINT
             hex_dump((rt_uint8_t *)&pkthdr, PCAP_PKTHDR_SIZE);
             rt_tcpdump_ip_mess_print(p);
         #endif
@@ -335,6 +317,7 @@ static void rt_tcpdump_filename_set(const char *name)
 
 static void rt_tcpdump_filename_del(void)
 {
+    name = RT_NULL;
     if (filename != RT_NULL)
         rt_free(filename);
 }
@@ -346,6 +329,7 @@ static void rt_tcpdump_ethname_set(const char *eth)
 
 static void rt_tcpdump_ethname_del(void)
 {
+    eth = RT_NULL;
     if (ethname != RT_NULL)
         rt_free(ethname);
 }
@@ -460,7 +444,6 @@ static int rt_tcpdump_cmd_init(int argc, char *argv[])
     struct optparse options;
     char stop = 0;
     int flag = 0;
-    int tind = 0;
     
     optparse_init(&options, argv); 
     while((ch = optparse(&options, "phi::w::")) != -1)
