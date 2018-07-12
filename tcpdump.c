@@ -20,7 +20,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2018-07-11     never        the first version
+ * 2018-07-12     never        the first version
  */
 
 #include <rtthread.h>
@@ -268,7 +268,7 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
 
 static void rt_tcpdump_thread_entry(void *param)
 {
-    struct pbuf *pbuf, *p;
+    struct pbuf *pbuf = RT_NULL, *p = RT_NULL;
     struct rt_pkthdr pkthdr;
     rt_uint32_t mbval;
 
@@ -276,11 +276,11 @@ static void rt_tcpdump_thread_entry(void *param)
     {
         if (rt_mb_recv(tcpdump_mb, &mbval, RT_WAITING_FOREVER) == RT_EOK)
         {
-            RT_ASSERT(pbuf != RT_NULL);
-            
             pbuf = (struct pbuf *)mbval;
             p = pbuf;
 
+            RT_ASSERT(pbuf != RT_NULL);
+            
             /* write pkthdr */
             PACP_PKTHDR_CREATE(&pkthdr, p);
             rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
