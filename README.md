@@ -9,6 +9,20 @@
 - 依赖 DFS 文件系统
 - RT-Thread 3.0+，对bsp无依赖
 
+### 1.2 获取方式
+- 使用 menuconfig
+
+```
+  RT-Thread online packages --->
+      IOT internet of things --->
+          [*] netutils: Networking utilities for RT-Thread  --->
+          [*]   Enable tcpdump tool
+          [ ]     Enable tcpdump data to print on the console
+          [*]     Enable tcpdump debug log output
+```
+
+使用 `pkgs --update` 命令来获取或更新软件包。
+
 ## 2、使用
 
 ## 2.1 tcpdump命令说明

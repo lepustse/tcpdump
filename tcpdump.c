@@ -20,7 +20,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2018-07-12     never        the first version
+ * 2018-07-11     never        the first version
  */
 
 #include <rtthread.h>
@@ -29,11 +29,16 @@
 #include "netif/ethernetif.h"
 #include "optparse.h"
 
+#ifdef PKG_NETUTILS_TCPDUMP_DBG
 #define DBG_ENABLE
-//#undef  DBG_ENABLE
+
 #define DBG_SECTION_NAME  "[TCPDUMP]"
 #define DBG_LEVEL         DBG_INFO
 #define DBG_COLOR
+#else
+#undef DBG_ENABLE
+#endif
+// #undef DBG_ENABLE
 #include <rtdbg.h>
 
 #define TCPDUMP_MAX_MSG             (10)
@@ -90,8 +95,8 @@ do {                                                            \
     do {                                                        \
     (_head)->ts.tv_sec = rt_tick_get() / RT_TICK_PER_SECOND;    \
     (_head)->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   \
-    (_head)->caplen = p->tot_len;                               \
-    (_head)->len = p->tot_len;                                  \
+    (_head)->caplen = _p->tot_len;                               \
+    (_head)->len = _p->tot_len;                                  \
     } while (0) 
 
 struct rt_pcap_file_header
@@ -135,7 +140,7 @@ static void rt_tcpdump_filename_del(void);
 static void rt_tcpdump_ethname_del(void);
 
 
-#ifdef  TCPDUMP_PRINT
+#ifdef  PKG_NETUTILS_TCPDUMP_PRINT
 #define __is_print(ch) ((unsigned int)((ch) - ' ') < 127u - ' ')
 static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
 {
@@ -253,7 +258,7 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
 
     PACP_FILE_HEADER_CREATE(&file_header);
     
-#ifdef TCPDUMP_PRINT
+#ifdef PKG_NETUTILS_TCPDUMP_PRINT
     hex_dump((rt_uint8_t *)&file_header, PCAP_FILE_HEADER_SIZE);
 #endif
 
@@ -280,12 +285,12 @@ static void rt_tcpdump_thread_entry(void *param)
             p = pbuf;
 
             RT_ASSERT(pbuf != RT_NULL);
-            
+
             /* write pkthdr */
             PACP_PKTHDR_CREATE(&pkthdr, p);
             rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
 
-        #ifdef TCPDUMP_PRINT
+        #ifdef PKG_NETUTILS_TCPDUMP_PRINT
             hex_dump((rt_uint8_t *)&pkthdr, PCAP_PKTHDR_SIZE);
             rt_tcpdump_ip_mess_print(p);
         #endif
@@ -296,6 +301,7 @@ static void rt_tcpdump_thread_entry(void *param)
                 p = p->next;
             }
             pbuf_free(pbuf);
+            pbuf = RT_NULL;
         }
         else
         {
@@ -319,6 +325,8 @@ static void rt_tcpdump_filename_del(void)
     name = RT_NULL;
     if (filename != RT_NULL)
         rt_free(filename);
+
+    filename = RT_NULL;
 }
 
 static void rt_tcpdump_ethname_set(const char *eth)
@@ -535,4 +543,7 @@ static int rt_tcpdump_cmd_init(int argc, char *argv[])
     
     return RT_EOK;    
 }
+#ifdef RT_USING_FINSH
+#include <finsh.h>
 MSH_CMD_EXPORT_ALIAS(rt_tcpdump_cmd_init, tcpdump, test optparse_short cmd.);
+#endif
