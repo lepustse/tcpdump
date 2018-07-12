@@ -116,7 +116,7 @@ msh />tcpdump
 
 ### 2.5 ping
 
-msh/>里输入 "ping"[Ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md)得到IP，电脑ping这个IP地址
+msh/>里输入 "ping" [Ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 得到IP，电脑ping这个IP地址
 
 ```
 msh />ping 192.168.1.29

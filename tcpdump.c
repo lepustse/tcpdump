@@ -96,25 +96,25 @@ do {                                                            \
     do {                                                        \
     (_head)->ts.tv_sec = rt_tick_get() / RT_TICK_PER_SECOND;    \
     (_head)->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   \
-    (_head)->caplen = _p->tot_len;                               \
-    (_head)->len = _p->tot_len;                                  \
-    } while (0) 
+    (_head)->caplen = _p->tot_len;                              \
+    (_head)->len = _p->tot_len;                                 \
+    } while (0)
 
 struct rt_pcap_file_header
 {
-    rt_uint32_t magic;                         
-    rt_uint16_t version_major;   
-    rt_uint16_t version_minor;  
-    rt_int32_t thiszone;        
-    rt_uint32_t sigfigs;        
-    rt_uint32_t snaplen;      
-    rt_uint32_t linktype;      
+    rt_uint32_t magic;
+    rt_uint16_t version_major;
+    rt_uint16_t version_minor;
+    rt_int32_t thiszone;
+    rt_uint32_t sigfigs;
+    rt_uint32_t snaplen;
+    rt_uint32_t linktype;
 };
 
 struct rt_timeval
 {
-    rt_uint32_t tv_sec;       
-    rt_uint32_t tv_msec;     
+    rt_uint32_t tv_sec;
+    rt_uint32_t tv_msec;
 };
 
 struct rt_pkthdr
@@ -157,7 +157,7 @@ static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
     int i, j;
 
     RT_ASSERT(ptr != RT_NULL);
-    
+
     for (i = 0; i < buflen; i += 16)
     {
         rt_kprintf("%08X: ", i);
@@ -179,13 +179,13 @@ static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
 static void rt_tcpdump_ip_mess_print(struct pbuf *p)
 {
     rt_uint8_t *buf = (rt_uint8_t *)rt_malloc(p->tot_len);
-    
+
     RT_ASSERT(buf != RT_NULL);
-    
+
     pbuf_copy_partial(p, buf, p->tot_len, 0);
-    
+
     hex_dump(buf, p->tot_len);
-    
+
     rt_free(buf);
 }
 #endif
@@ -193,7 +193,7 @@ static void rt_tcpdump_ip_mess_print(struct pbuf *p)
 static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
 {
     RT_ASSERT(netif != RT_NULL);
-    
+
     if (p != RT_NULL)
     {
         pbuf_ref(p);
@@ -209,7 +209,7 @@ static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
 static err_t _netif_input(struct pbuf *p, struct netif *inp)
 {
     RT_ASSERT(inp != RT_NULL);
-    
+
     if (p != RT_NULL)
     {
         pbuf_ref(p);
@@ -266,7 +266,7 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
     struct rt_pcap_file_header file_header;
 
     PACP_FILE_HEADER_CREATE(&file_header);
-    
+
 #ifdef  PKG_NETUTILS_TCPDUMP_PRINT
     hex_dump((rt_uint8_t *)&file_header, PCAP_FILE_HEADER_SIZE);
 #endif
@@ -294,18 +294,18 @@ static void rt_tcpdump_thread_entry(void *param)
             p = pbuf;
 
             RT_ASSERT(pbuf != RT_NULL);
-            
+
             /* write pkthdr */
             PACP_PKTHDR_CREATE(&pkthdr, p);
             rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
 
-        #ifdef  PKG_NETUTILS_TCPDUMP_PRINT
+#ifdef  PKG_NETUTILS_TCPDUMP_PRINT
             hex_dump((rt_uint8_t *)&pkthdr, PCAP_PKTHDR_SIZE);
             rt_tcpdump_ip_mess_print(p);
-        #endif
-            
+#endif
+
             while (p)
-            {                 
+            {
                 rt_tcpdump_pcap_file_write(p->payload, p->len);
                 p = p->next;
             }
@@ -334,7 +334,7 @@ static void rt_tcpdump_filename_del(void)
     name = RT_NULL;
     if (filename != RT_NULL)
         rt_free(filename);
-    
+
     filename = RT_NULL;
 }
 
@@ -361,7 +361,7 @@ int rt_tcpdump_init(void)
         dbg_log(DBG_ERROR, "This command is running, please stop before you use the \"tcpdump -p\" command!\n");
         return RT_EOK;
     }
-    
+
     device = (struct eth_device *)rt_device_find(eth);
     if (device == RT_NULL)
     {
@@ -373,14 +373,14 @@ int rt_tcpdump_init(void)
         dbg_log(DBG_ERROR, "this device not e0!\n");
         return -RT_ERROR;
     }
-    
+
     tcpdump_mb = rt_mb_create("tcpdump", TCPDUMP_MAX_MSG, RT_IPC_FLAG_FIFO);
     if (tcpdump_mb == RT_NULL)
     {
         dbg_log(DBG_ERROR, "tcp dump mp create fail!\n");
         return -RT_ERROR;
     }
-    
+
     tid = rt_thread_create("tcp_dump", rt_tcpdump_thread_entry, RT_NULL, 2048, 10, 10);
     if (tid == RT_NULL)
     {
@@ -392,9 +392,9 @@ int rt_tcpdump_init(void)
 
     rt_tcpdump_filename_set(name);
     rt_tcpdump_ethname_set(eth);
-    
+
     netif = device->netif;
-   
+
     level = rt_hw_interrupt_disable();
     link_output = netif->linkoutput;
     netif->linkoutput = _netif_linkoutput;
@@ -402,11 +402,11 @@ int rt_tcpdump_init(void)
     input = netif->input;
     netif->input = _netif_input;
     rt_hw_interrupt_enable(level);
-    
+
     rt_thread_startup(tid);
     rt_tcpdump_pcap_file_init();
     dbg_log(DBG_INFO, "tcpdump start!\n");
-    
+
     return RT_EOK;
 }
 
@@ -419,17 +419,17 @@ void rt_tcpdump_deinit(void)
         dbg_log(DBG_ERROR, "capture packet stopped, no repeat input required!\n");
         return;
     }
-    
+
     level = rt_hw_interrupt_disable();
 
     netif->linkoutput = link_output;
     netif->input = input;
     netif = RT_NULL;
-    
+
     rt_hw_interrupt_enable(level);
     rt_mb_delete(tcpdump_mb);
     tcpdump_mb = RT_NULL;
-    
+
     dbg_log(DBG_INFO, "tcpdump stop!\n");
 }
 
@@ -440,7 +440,7 @@ static void rt_tcpdump_help_info_print(void)
     rt_kprintf("-h: help\n");
     rt_kprintf("-i: specify the network interface for listening\n");
     rt_kprintf("-w: write the captured packets into an xxx.pcap file\n");
-    rt_kprintf("-p: stop capturing packets\n\n"); 
+    rt_kprintf("-p: stop capturing packets\n\n");
     rt_kprintf("e.g.:\n");
     rt_kprintf("specify a network adapter device and save to an X file\n");
     rt_kprintf("tcpdump -ie0 -wsample.pcap\n\n");
@@ -480,26 +480,26 @@ static int rt_tcpdump_single_parse(struct optparse *options)
 
 static int rt_tcpdump_single_cmd(char *argv[], const char *cmd)
 {
-    int ch; 
+    int ch;
     struct optparse options;
     int invalid_argv = 0;   /* prevent illegal parameters. e.g.: tcpdump x */
     int res;
     optparse_init(&options, argv);
-    
-    while((ch = optparse(&options, cmd)) != -1)
+
+    while ((ch = optparse(&options, cmd)) != -1)
     {
         invalid_argv = 1;
-        
+
         /* So the single command is called repeatedly, so it prevents repeated parsing */
-        if (*(argv[1] + 1) != *cmd)  
+        if (*(argv[1] + 1) != *cmd)
             return -RT_ERROR;
 
-        ch = ch; 
+        ch = ch;
         res = rt_tcpdump_single_parse(&options);
     }
-    
+
     if (invalid_argv == 0)
-    {   
+    {
         return -RT_ERROR;
     }
     rt_kprintf("res: %d\n", res);
@@ -512,7 +512,7 @@ static int rt_tcpdump_comp_parse(struct optparse *options)
     {
         dbg_log(DBG_LOG, "optarg = %s\n", options->optarg);
         if (options->optarg == RT_NULL)
-        {    
+        {
             rt_tcpdump_error_info_deal();
             return RT_ERROR;
         }
@@ -523,13 +523,13 @@ static int rt_tcpdump_comp_parse(struct optparse *options)
     {
         dbg_log(DBG_LOG, "optarg = %s\n", options->optarg);
         if (options->optarg == RT_NULL)
-        {    
+        {
             rt_tcpdump_error_info_deal();
             return RT_ERROR;
         }
-        
+
         /* The user does not specify the network card, the default parameter is used */
-        eth = "e0"; 
+        eth = "e0";
         name = options->optarg;
         return WRITE;
     }
@@ -541,30 +541,30 @@ static int rt_tcpdump_comp_parse(struct optparse *options)
 
 static int rt_tcpdump_comp_cmd(char *argv[], const char *cmd)
 {
-    int ch; 
+    int ch;
     struct optparse options;
     int res;
     int invalid_argv = 0;   /* prevent illegal parameters. e.g.: tcpdump x */
-    
+
     optparse_init(&options, argv);
-        
-    while((ch = optparse(&options, cmd)) != -1)
+
+    while ((ch = optparse(&options, cmd)) != -1)
     {
         invalid_argv = 1;
-        
+
         /* Prevent parameters that are not yet defined. e.g.: tcpdump -u */
         if ((*(argv[1] + 1) != *cmd) && (*(argv[1] + 1) != *(cmd + 3)))
             return -RT_ERROR;
- 
+
         ch = ch;
         res = rt_tcpdump_comp_parse(&options);
     }
 
     if (invalid_argv == 0)
-    {   
+    {
         return -RT_ERROR;
     }
-    
+
     return res;
 }
 
@@ -576,32 +576,32 @@ static int tcpdump_test(int argc, char *argv[])
     dbg_log(DBG_LOG, "res: %d\n", res);
     if (res  == STOP)
         return RT_EOK;
-    
+
     res = rt_tcpdump_single_cmd(argv, "h");
     dbg_log(DBG_LOG, "res: %d\n", res);
     if (res == HELP)
         return RT_EOK;
-    
+
     res = rt_tcpdump_comp_cmd(argv, "i::w::");
     dbg_log(DBG_LOG, "res: %d\n", res);
     if (res == INTERNET)
         res = INIT;
-        
+
     if (res == WRITE)
         res = INIT;
-    
+
     if (res == -RT_ERROR)
     {
         rt_tcpdump_error_info_deal();
         return -RT_ERROR;
     }
-    
+
     if (name == RT_NULL)
         name = TCPDUMP_DEFAULT_NANE;
-    
+
     rt_tcpdump_init();
-    
-    return RT_EOK; 
+
+    return RT_EOK;
 }
 #ifdef RT_USING_FINSH
 #include <finsh.h>
