@@ -20,7 +20,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2018-07-11     never        the first version
+ * 2018-07-12     never        the first version
  */
 
 #include <rtthread.h>
@@ -38,8 +38,9 @@
 #else
 #undef DBG_ENABLE
 #endif
-// #undef DBG_ENABLE
 #include <rtdbg.h>
+
+#define TCPDUMP_DEFAULT_NANE        ("sample.pcap")
 
 #define TCPDUMP_MAX_MSG             (10)
 #define PCAP_FILE_HEADER_SIZE       (24)
@@ -123,6 +124,15 @@ struct rt_pkthdr
     rt_uint32_t len;
 };
 
+enum rt_tcpdump_return_param
+{
+    STOP = -2,
+    HELP = -3,
+    INTERNET = -4,
+    WRITE = -5,
+    INIT = -6,
+};
+
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
 static netif_linkoutput_fn link_output;
@@ -138,7 +148,6 @@ static int fd = -1;
 
 static void rt_tcpdump_filename_del(void);
 static void rt_tcpdump_ethname_del(void);
-
 
 #ifdef  PKG_NETUTILS_TCPDUMP_PRINT
 #define __is_print(ch) ((unsigned int)((ch) - ' ') < 127u - ' ')
@@ -258,7 +267,7 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
 
     PACP_FILE_HEADER_CREATE(&file_header);
     
-#ifdef PKG_NETUTILS_TCPDUMP_PRINT
+#ifdef  PKG_NETUTILS_TCPDUMP_PRINT
     hex_dump((rt_uint8_t *)&file_header, PCAP_FILE_HEADER_SIZE);
 #endif
 
@@ -285,12 +294,12 @@ static void rt_tcpdump_thread_entry(void *param)
             p = pbuf;
 
             RT_ASSERT(pbuf != RT_NULL);
-
+            
             /* write pkthdr */
             PACP_PKTHDR_CREATE(&pkthdr, p);
             rt_tcpdump_pcap_file_write(&pkthdr, sizeof(pkthdr));
 
-        #ifdef PKG_NETUTILS_TCPDUMP_PRINT
+        #ifdef  PKG_NETUTILS_TCPDUMP_PRINT
             hex_dump((rt_uint8_t *)&pkthdr, PCAP_PKTHDR_SIZE);
             rt_tcpdump_ip_mess_print(p);
         #endif
@@ -325,7 +334,7 @@ static void rt_tcpdump_filename_del(void)
     name = RT_NULL;
     if (filename != RT_NULL)
         rt_free(filename);
-
+    
     filename = RT_NULL;
 }
 
@@ -349,25 +358,26 @@ int rt_tcpdump_init(void)
 
     if (netif != RT_NULL)
     {
+        dbg_log(DBG_ERROR, "This command is running, please stop before you use the \"tcpdump -p\" command!\n");
         return RT_EOK;
     }
     
     device = (struct eth_device *)rt_device_find(eth);
     if (device == RT_NULL)
     {
-        dbg_log(DBG_ERROR, "network interface card device not find\n");
+        dbg_log(DBG_ERROR, "network interface card device not find!\n");
         return -RT_ERROR;
     }
     if ((device->netif == RT_NULL) || (device->netif->linkoutput == RT_NULL))
     {
-        dbg_log(DBG_ERROR, "this device not eth\n");
+        dbg_log(DBG_ERROR, "this device not e0!\n");
         return -RT_ERROR;
     }
     
     tcpdump_mb = rt_mb_create("tcpdump", TCPDUMP_MAX_MSG, RT_IPC_FLAG_FIFO);
     if (tcpdump_mb == RT_NULL)
     {
-        dbg_log(DBG_ERROR, "tcp dump mp create fail\n");
+        dbg_log(DBG_ERROR, "tcp dump mp create fail!\n");
         return -RT_ERROR;
     }
     
@@ -376,7 +386,7 @@ int rt_tcpdump_init(void)
     {
         rt_mb_delete(tcpdump_mb);
         tcpdump_mb = RT_NULL;
-        dbg_log(DBG_ERROR, "tcp dump thread create fail\n");
+        dbg_log(DBG_ERROR, "tcp dump thread create fail!\n");
         return -RT_ERROR;
     }
 
@@ -406,6 +416,7 @@ void rt_tcpdump_deinit(void)
 
     if (netif == RT_NULL)
     {
+        dbg_log(DBG_ERROR, "capture packet stopped, no repeat input required!\n");
         return;
     }
     
@@ -449,101 +460,150 @@ static void rt_tcpdump_error_info_deal(void)
     rt_tcpdump_help_info_print();
 }
 
-static int rt_tcpdump_cmd_init(int argc, char *argv[])
+static int rt_tcpdump_single_parse(struct optparse *options)
+{
+    if (options->optopt == 'p')
+    {
+        rt_tcpdump_deinit();
+        return STOP;
+    }
+    else if (options->optopt == 'h')
+    {
+        rt_tcpdump_help_info_print();
+        return HELP;
+    }
+    else
+    {
+        ;
+    }
+}
+
+static int rt_tcpdump_single_cmd(char *argv[], const char *cmd)
 {
     int ch; 
     struct optparse options;
-    char stop = 0;
-    int flag = 0;
-
-    optparse_init(&options, argv); 
-    while((ch = optparse(&options, "phi::w::")) != -1)
+    int invalid_argv = 0;   /* prevent illegal parameters. e.g.: tcpdump x */
+    int res;
+    optparse_init(&options, argv);
+    
+    while((ch = optparse(&options, cmd)) != -1)
     {
-        flag = 1;
+        invalid_argv = 1;
+        
+        /* So the single command is called repeatedly, so it prevents repeated parsing */
+        if (*(argv[1] + 1) != *cmd)  
+            return -RT_ERROR;
+
         ch = ch; 
-        dbg_log(DBG_LOG, "optind = %d\n", options.optind);
-        
-        switch(options.optind)
-        {
-        case 2:
-            if (options.optopt == 'p')
-            {
-                stop = options.optopt;
-                rt_tcpdump_deinit();
-            }
-            else if (options.optopt == 'h')
-            {
-                rt_tcpdump_help_info_print();
-            }
-            else if (options.optopt == 'i')
-            {
-                if (options.optarg == RT_NULL)
-                {    
-                    rt_tcpdump_error_info_deal();
-                    return RT_ERROR;
-                }
-                eth = options.optarg;                
-            }    
-            else if (options.optopt == 'w')
-            {
-                if (options.optarg == RT_NULL)
-                {    
-                    rt_tcpdump_error_info_deal();
-                    return RT_ERROR;
-                }
-                eth = "e0";
-                name = options.optarg;
-            }    
-            else
-            {
-                rt_tcpdump_error_info_deal();
-                return RT_ERROR;
-            }
-            break;
-        
-        case 3:
-            if (options.optopt == 'w')
-            {
-                if (options.optarg == RT_NULL)
-                {
-                    rt_tcpdump_error_info_deal();
-                    return RT_ERROR;
-                }
-                name = options.optarg;
-            }
-            else
-            {
-                rt_tcpdump_error_info_deal();
-                return RT_ERROR;
-            }
-            break;
-            
-        default:
-            break;
-        }
-    }
-
-    if (flag == 0)
-    {
-        rt_tcpdump_error_info_deal();
-        return RT_ERROR;        
+        res = rt_tcpdump_single_parse(&options);
     }
     
-    if (stop == 'p')
+    if (invalid_argv == 0)
+    {   
+        return -RT_ERROR;
+    }
+    rt_kprintf("res: %d\n", res);
+    return res;
+}
+
+static int rt_tcpdump_comp_parse(struct optparse *options)
+{
+    if (options->optopt == 'i')
+    {
+        dbg_log(DBG_LOG, "optarg = %s\n", options->optarg);
+        if (options->optarg == RT_NULL)
+        {    
+            rt_tcpdump_error_info_deal();
+            return RT_ERROR;
+        }
+        eth = options->optarg;
+        return INTERNET;
+    }
+    else if (options->optopt == 'w')
+    {
+        dbg_log(DBG_LOG, "optarg = %s\n", options->optarg);
+        if (options->optarg == RT_NULL)
+        {    
+            rt_tcpdump_error_info_deal();
+            return RT_ERROR;
+        }
+        
+        /* The user does not specify the network card, the default parameter is used */
+        eth = "e0"; 
+        name = options->optarg;
+        return WRITE;
+    }
+    else
+    {
+        return -RT_ERROR;
+    }
+}
+
+static int rt_tcpdump_comp_cmd(char *argv[], const char *cmd)
+{
+    int ch; 
+    struct optparse options;
+    int res;
+    int invalid_argv = 0;   /* prevent illegal parameters. e.g.: tcpdump x */
+    
+    optparse_init(&options, argv);
+        
+    while((ch = optparse(&options, cmd)) != -1)
+    {
+        invalid_argv = 1;
+        
+        /* Prevent parameters that are not yet defined. e.g.: tcpdump -u */
+        if ((*(argv[1] + 1) != *cmd) && (*(argv[1] + 1) != *(cmd + 3)))
+            return -RT_ERROR;
+ 
+        ch = ch;
+        res = rt_tcpdump_comp_parse(&options);
+    }
+
+    if (invalid_argv == 0)
+    {   
+        return -RT_ERROR;
+    }
+    
+    return res;
+}
+
+static int tcpdump_test(int argc, char *argv[])
+{
+    int res;
+
+    res = rt_tcpdump_single_cmd(argv, "p");
+    dbg_log(DBG_LOG, "res: %d\n", res);
+    if (res  == STOP)
         return RT_EOK;
     
-    if ((eth != RT_NULL) && (name == RT_NULL))
+    res = rt_tcpdump_single_cmd(argv, "h");
+    dbg_log(DBG_LOG, "res: %d\n", res);
+    if (res == HELP)
+        return RT_EOK;
+    
+    res = rt_tcpdump_comp_cmd(argv, "i::w::");
+    dbg_log(DBG_LOG, "res: %d\n", res);
+    if (res == INTERNET)
+        res = INIT;
+        
+    if (res == WRITE)
+        res = INIT;
+    
+    if (res == -RT_ERROR)
     {
-        dbg_log(DBG_ERROR, "please enter a filename\n");
-        rt_tcpdump_help_info_print();
-        return RT_ERROR;         
+        rt_tcpdump_error_info_deal();
+        return -RT_ERROR;
     }
+    
+    if (name == RT_NULL)
+        name = TCPDUMP_DEFAULT_NANE;
     
     rt_tcpdump_init();
     
-    return RT_EOK;    
+    return RT_EOK; 
 }
 #ifdef RT_USING_FINSH
 #include <finsh.h>
-MSH_CMD_EXPORT_ALIAS(rt_tcpdump_cmd_init, tcpdump, test optparse_short cmd.);
+MSH_CMD_EXPORT_ALIAS(tcpdump_test, tcpdump, test optparse_short cmd.);
 #endif

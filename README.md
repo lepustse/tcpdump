@@ -41,6 +41,7 @@
 ```
 SD card capacity 31023104 KB
 probe mmcsd block device!
+found part[0], begin: 10485760, size: 29.580GB
 File System initialized!
 ```
 
@@ -115,7 +116,16 @@ msh />tcpdump
 
 ### 2.5 ping
 
-msh/>里输入 "ping"[Ping](ping/README.md)得到IP，电脑ping这个IP
+msh/>里输入 "ping"[Ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md)得到IP，电脑ping这个IP地址
+
+```
+msh />ping 192.168.1.29
+```
+
+也可以 "ping" 域名
+```
+msh />ping www.baidu.com
+```
 
 ### 2.6 停止抓包
 
