@@ -24,6 +24,8 @@
 
 使用 `pkgs --update` 命令来获取或更新软件包。
 
+注：调试信息建议不要关闭
+
 ## 2、使用
 
 ### 2.1、tcpdump命令说明
@@ -222,25 +224,38 @@ msh />
 
 ### 5.2、默认网卡
 
+#### 5.2.1、sd-card 模式
 此时默认网卡，详情如下：
 
 ```
-msh />tcpdump -ssd -wtext.pcap
-select "sd card" mode
+msh />tcpdump -msd -wtext.pcap
+select "sd-card" mode
 default selection "e0" network card device
 save in "text.pcap"
 [TCPDUMP]tcpdump start!
 msh />
 ```
 
-### 5.3、默认 sd card 模式
+#### 5.2.2、rdb 模式
 
-此时默认 sd card 模式，详情如下：
+此时默认网卡，详情如下：
+
+```
+msh />tcpdump -ie0 -mrdb -wtext.pcap
+select "rdb" mode
+save in "text.pcap"
+[TCPDUMP]tcpdump start!
+msh />
+```
+
+### 5.3、默认 sd-card 模式
+
+此时默认 sd-card 模式，详情如下：
 
 ```
 msh />tcpdump -ie0 -wtext.pcap    
 select "e0" network card device
-default selection "sd card" mode
+default selection "sd-card" mode
 save in "text.pcap"
 [TCPDUMP]tcpdump start!
 msh /> 
@@ -248,12 +263,27 @@ msh />
 
 ### 5.4、默认文件名
 
+#### 5.4.1、sd-card 模式
+
 此时默认 sample.pcap 文件名，详情如下：
 
 ```
-msh />tcpdump -ie0 -ssd 
+msh />tcpdump -ie0 -msd 
 select "e0" network card device
-select "sd card" mode
+select "sd-card" mode
+default selection "sample.pcap"
+[TCPDUMP]tcpdump start!
+msh />
+```
+
+#### 5.4.2、rdb 模式 
+
+此时默认 sample.pcap 文件名，详情如下：
+
+```
+msh />tcpdump -ie0 -mrdb            
+select "e0" network card device
+select "rdb" mode
 default selection "sample.pcap"
 [TCPDUMP]tcpdump start!
 msh />
@@ -264,33 +294,35 @@ msh />
 ```
 msh />tcpdump -h
 
--------------------------- help ------------------------
--h: help
--i: specify the network interface for listening
--s: choose what way to save the file
--w: write the captured packets into an xxx.pcap file
--p: stop capturing packets
-
-e.g.:
-specify a network adapter device and save to an X file
-tcpdump -ie0 -ssd -wtext.pcap
-
-tcpdump -ie0 -srdb -wtext.pcap
-
-save files in SD mode
-tcpdump -ssd
-
-save files in rdb mode
-tcpdump -srdb
-
-save to x file only
-tcpdump -wtext.pcap
-
-stop capturing packets
-tcpdump -p
-help
-tcpdump -h
--------------------------- help ------------------------
+|<-------------------------- help ---------------------->|
+| tcpdump [-ph] [-i interface] [-m mode] [-w file]       |
+|                                                        |
+| -h: help                                               |
+| -i: specify the network interface for listening        |
+| -m: choose what mode to save the file                  |
+| -w: write the captured packets into an xxx.pcap file   |
+| -p: stop capturing packets                             |
+|                                                        |
+| e.g.:                                                  |
+| specify a network adapter device and save to an x file |
+| tcpdump -ie0 -ssd -wtext.pcap                          |
+| tcpdump -ie0 -srdb -wtext.pcap                         |
+|                                                        |
+| -m: sd-card mode                                       |
+| tcpdump -msd                                           |
+|                                                        |
+| -m: rdb mode                                           |
+| tcpdump -mrdb                                          |
+|                                                        |
+| -w: file                                               |
+| tcpdump -wtext.pcap                                    |
+|                                                        |
+| -p: stop                                               |
+| tcpdump -p                                             |
+|                                                        |
+| -h: help                                               |
+| tcpdump -h                                             |
+|<-------------------------- help ---------------------->|
 
 msh />
 ```
