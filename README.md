@@ -56,7 +56,7 @@ File System initialized!
 sdcard init fail or timeout: -2!
 ```
 
-msh/>里，输入 "list_device" 可以查看成功挂载的设备，详情如下：
+- msh/>里，输入 `list_device` 可以查看成功挂载的设备，详情如下：
 
 ```
 msh />list_device
@@ -74,7 +74,9 @@ msh />
 ### 3.2、抓包前检查
 
 抓包前请确认板子的ip地址
-msh/>里，输入 "ifconfig" 查看网卡名称，详情如下：
+
+
+- msh/>里，输入 `ifconfig` 查看网卡名称，详情如下：
 
 ```
 msh />ifconfig
@@ -92,7 +94,7 @@ msh />
 
 ### 3.3、开启抓包
 
-msh/>里，输入 "tcpdump -ie0 -ssd -wtext.pcap"，详情如下：
+- msh/>里，输入 `tcpdump -ie0 -ssd -wtext.pcap`，详情如下：
 
 ```
 msh />tcpdump -ie0 -ssd -wtext.pcap
@@ -105,20 +107,20 @@ msh />
 
 ### 3.4、ping
 
-msh/>里输入 "ping" [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 得到IP，电脑ping这个IP地址
+- msh/>里输入 `ping` [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 得到IP，电脑ping这个IP地址
 
 ```
 msh />ping 192.168.1.29
 ```
 
-也可以 "ping" 域名
+也可以 `ping` 域名
 ```
 msh />ping www.baidu.com
 ```
 
 ### 3.5、停止抓包
 
-msh/>里，输入 "tcpdump -p"，详情如下：
+- msh/>里，输入 `tcpdump -p`，详情如下：
 
 ```
 msh />tcpdump -p
@@ -128,7 +130,7 @@ msh />
 
 ### 3.6、查看结果
 
-msh/>里，输入 "ls" 查看保存结果，详情如下：
+- msh/>里，输入 `ls` 查看保存结果，详情如下：
 
 ```
 msh />ls
@@ -147,7 +149,7 @@ msh />
 
 ### 4.1、开启抓包
 
-msh/>里，输入 "tcpdump -ie0 -srdb -wtext.pcap"，详情如下：
+- msh/>里，输入 `tcpdump -ie0 -srdb -wtext.pcap`，详情如下：
 
 ```
 msh />tcpdump -ie0 -srdb -wtext.pcap
@@ -160,20 +162,20 @@ msh />
 
 ### 4.2、ping
 
-msh/>里输入 "ping" [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 得到IP，电脑ping这个IP地址
+- msh/>里输入 `ping` [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 得到IP，电脑ping这个IP地址
 
 ```
 msh />ping 192.168.1.29
 ```
 
-也可以 "ping" 域名
+也可以 `ping` 域名
 ```
 msh />ping www.baidu.com
 ```
 
 ### 4.3、停止抓包
 
-msh/>里，输入 "tcpdump -p"，详情如下：
+- msh/>里，输入 `tcpdump -p`，详情如下：
 
 ```
 msh />tcpdump -p
@@ -183,7 +185,7 @@ msh />
 
 ### 4.4、查看结果
 
-msh/>里，输入 "ls" 查看保存结果，详情如下：
+- msh/>里，输入 `ls` 查看保存结果，详情如下：
 
 ```
 msh />ls
@@ -324,7 +326,7 @@ msh />
 
 ## 6、注意事项
 
-- 抓包结束或者不想抓包了，请输入 "tcpdump -p" 结束抓包
+- 抓包结束或者不想抓包了，请输入 `tcpdump -p` 结束抓包
 
 ## 7、联系方式 & 感谢
 
