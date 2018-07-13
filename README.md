@@ -95,7 +95,7 @@ msh />
 
 ### 3.3、开启抓包
 
-msh/>里，输入 "tcpdump -ie0 -wsample.pcap"，详情如下：
+msh/>里，输入 "tcpdump -ie0 -ssd -wtext.pcap"，详情如下：
 
 ```
 msh />tcpdump -ie0 -ssd -wtext.pcap
@@ -104,14 +104,6 @@ select "sd card" mode
 save in "text.pcap"
 [TCPDUMP]tcpdump start!
 msh />
-```
-
-msh/> 带自动补全功能，输入 "tc"，按下tab键，详情如下：
-
-```
-msh />tc
-tcpdump
-msh />tcpdump
 ```
 
 ### 3.4、ping
@@ -145,7 +137,7 @@ msh/>里，输入 "ls" 查看保存结果，详情如下：
 msh />ls
 Directory /:
 System Volume Information<DIR>                    
-sample.pcap         1012                     
+text.pcap         1012                     
 msh />
 ```
 
@@ -157,6 +149,8 @@ msh />
 ## 4、抓包文件通过rdb[]() 软件包导入PC
 
 ### 4.1、开启抓包
+
+msh/>里，输入 "tcpdump -ie0 -srdb -wtext.pcap"，详情如下：
 
 ```
 msh />tcpdump -ie0 -srdb -wtext.pcap
@@ -198,7 +192,7 @@ msh/>里，输入 "ls" 查看保存结果，详情如下：
 msh />ls
 Directory /:
 System Volume Information<DIR>                    
-sample.pcap         1012                     
+text.pcap         1012                     
 msh />
 ```
 
@@ -228,8 +222,6 @@ msh />
 
 ### 5.2、默认网卡
 
-#### 5.2.1、不带-i
-
 此时默认网卡，详情如下：
 
 ```
@@ -241,22 +233,7 @@ save in "text.pcap"
 msh />
 ```
 
-#### 5.2.2、带-i，但不带参数
-
-此时默认网卡，详情如下：
-
-```
-msh />tcpdump -i -ssd -wtext.pcap
-select "sd card" mode
-default selection "e0" network card device
-save in "text.pcap"
-[TCPDUMP]tcpdump start!
-msh />
-```
-
 ### 5.3、默认 sd card 模式
-
-#### 5.3.1、不带-s
 
 此时默认 sd card 模式，详情如下：
 
@@ -269,22 +246,7 @@ save in "text.pcap"
 msh /> 
 ```
 
-#### 5.3.2、带-s，但不带参数
-
-此时默认 sd card 模式，详情如下：
-
-```
-msh />tcpdump -ie0 -s -wtext.pcap
-select "e0" network card device
-default selection "sd card" mode
-save in "text.pcap"
-[TCPDUMP]tcpdump start!
-msh />
-```
-
 ### 5.4、默认文件名
-
-#### 5.4.1、不带-w
 
 此时默认 sample.pcap 文件名，详情如下：
 
@@ -297,19 +259,41 @@ default selection "sample.pcap"
 msh />
 ```
 
-#### 5.4.2、带-w，但不带参数
-
-此时默认 sample.pcap 文件名，详情如下：
+### 5.5、help
 
 ```
-msh />tcpdump -ie0 -ssd -w
-select "e0" network card device
-select "sd card" mode
-default selection "sample.pcap"
-[TCPDUMP]tcpdump start!
+msh />tcpdump -h
+
+-------------------------- help ------------------------
+-h: help
+-i: specify the network interface for listening
+-s: choose what way to save the file
+-w: write the captured packets into an xxx.pcap file
+-p: stop capturing packets
+
+e.g.:
+specify a network adapter device and save to an X file
+tcpdump -ie0 -ssd -wtext.pcap
+
+tcpdump -ie0 -srdb -wtext.pcap
+
+save files in SD mode
+tcpdump -ssd
+
+save files in rdb mode
+tcpdump -srdb
+
+save to x file only
+tcpdump -wtext.pcap
+
+stop capturing packets
+tcpdump -p
+help
+tcpdump -h
+-------------------------- help ------------------------
+
 msh />
 ```
-
 
 ## 6、注意事项
 

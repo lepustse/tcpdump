@@ -20,7 +20,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2018-07-13    never        the first version
+ * 2018-07-13     never        the first version
  */
 
 #include <rtthread.h>
@@ -30,6 +30,7 @@
 #include "optparse.h"
 #include "rdbd.h"
 
+#define PKG_NETUTILS_TCPDUMP_DBG
 #ifdef PKG_NETUTILS_TCPDUMP_DBG
     #define DBG_ENABLE
 
@@ -394,8 +395,8 @@ static int rt_tcpdump_pipe_init(void)
         LOG_E("rdbd device [%s] not found", "urdbd");
         return -1;
     }
-
-    d_to_h_pipe = (struct rdbd_device *)rdbd_pipe_create(rdbd, "tdrdb", RDBD_SERVICE_ID_TCP_DUMP, RDBD_PIPE_DEVICE_TO_HOST, 512);
+    
+    d_to_h_pipe = (struct rdbd_device *)rdbd_pipe_create(rdbd, "tdrdb", RDBD_SERVICE_ID_TCP_DUMP, RDBD_PIPE_DEVICE_TO_HOST, 2048);
     if (d_to_h_pipe == RT_NULL)
     {
         LOG_E("pipe device shin create failed");
@@ -495,16 +496,17 @@ static void rt_tcpdump_deinit(void)
 static void rt_tcpdump_help_info_print(void)
 {
     rt_kprintf("\n");
-    rt_kprintf("-------------------------- help --------------------------\n");
+    rt_kprintf("-------------------------- help ------------------------\n");
     rt_kprintf("-h: help\n");
     rt_kprintf("-i: specify the network interface for listening\n");
-    rt_kprintf("-s: choose what way to save the file, this option must be set, or it cannot be initialized!!!\n");
+    rt_kprintf("-s: choose what way to save the file\n");
     rt_kprintf("-w: write the captured packets into an xxx.pcap file\n");
     rt_kprintf("-p: stop capturing packets\n\n");
 
     rt_kprintf("e.g.:\n");
     rt_kprintf("specify a network adapter device and save to an X file\n");
-    rt_kprintf("tcpdump -ie0 -wsample.pcap\n\n");
+    rt_kprintf("tcpdump -ie0 -ssd -wtext.pcap\n\n");
+    rt_kprintf("tcpdump -ie0 -srdb -wtext.pcap\n\n");
 
     rt_kprintf("save files in SD mode\n");
     rt_kprintf("tcpdump -ssd\n\n");
@@ -512,15 +514,15 @@ static void rt_tcpdump_help_info_print(void)
     rt_kprintf("save files in rdb mode\n");
     rt_kprintf("tcpdump -srdb\n\n");
 
-    rt_kprintf("save to X file only\n");
-    rt_kprintf("tcpdump -wsample.pcap\n\n");
+    rt_kprintf("save to x file only\n");
+    rt_kprintf("tcpdump -wtext.pcap\n\n");
 
     rt_kprintf("stop capturing packets\n");
     rt_kprintf("tcpdump -p\n");
 
     rt_kprintf("help\n");
     rt_kprintf("tcpdump -h\n");
-    rt_kprintf("--------------------------- end --------------------------\n");
+    rt_kprintf("-------------------------- help ------------------------\n");
     rt_kprintf("\n");
 }
 
@@ -572,7 +574,6 @@ static int rt_tcpdump_single_cmd(char *argv[], const char *cmd)
     {
         return -RT_ERROR;
     }
-    rt_kprintf("res: %d\n", res);
     return res;
 }
 
@@ -580,14 +581,17 @@ static int rt_tcpdump_comp_parse(struct optparse *options)
 {
     if (options->optopt == 'i')
     {
+        if (options->optarg == RT_NULL)
+            return -RT_ERROR;
         eth = options->optarg;
-        if (options->optarg != RT_NULL)
-            rt_kprintf("select \"%s\" network card device\n", eth);
         return INTERNET;
     }
 
     else if (options->optopt == 's')
     {
+        if (options->optarg == RT_NULL)
+            return -RT_ERROR;
+        
         if (!CMP(options->optarg, "sd"))
         {
             rt_kprintf("select \"sd card\" mode\n");
@@ -601,10 +605,14 @@ static int rt_tcpdump_comp_parse(struct optparse *options)
             tcpdump_write = rt_tcpdump_pcap_file_save;
             return SAVEIN;
         }
+        name = TCPDUMP_DEFAULT_NANE;
     }
 
     else if (options->optopt == 'w')
     {
+        if (options->optarg == RT_NULL)
+            return -RT_ERROR;
+        
         /* The user does not specify the network card, the default parameter is used */
         if (eth == RT_NULL)
         {
@@ -653,6 +661,8 @@ static int rt_tcpdump_comp_cmd(char *argv[], const char *cmd)
 
         ch = ch;
         res = rt_tcpdump_comp_parse(&options);
+        if (res == -RT_ERROR)
+            return -RT_ERROR;
     }
 
     if (invalid_argv == 0)
@@ -704,12 +714,22 @@ static int tcpdump_test(int argc, char *argv[])
         rt_tcpdump_error_info_deal();
         return -RT_ERROR;
     }
-
+    
     if (name == RT_NULL)
     {
         rt_kprintf("default selection \"sample.pcap\"\n");
         name = TCPDUMP_DEFAULT_NANE;
     }
+    
+    if (eth == RT_NULL)
+    {
+        rt_kprintf("default selection \"e0\" network card device\n");
+        eth = "e0";
+    }
+        
+    if (tcpdump_write == RT_NULL)
+        tcpdump_write = rt_tcpdump_pcap_file_write;
+
     rt_tcpdump_init();
 
     return RT_EOK;
