@@ -6,7 +6,7 @@
 ### 1.1、依赖
 
 - 依赖 [optparse](https://github.com/liu2guang/optparse) 软件包
-- 依赖 [rbd]() 软件包 & rdb 上位机软件 
+- 依赖 rdb 软件包 & rdb 上位机软件 
 - 依赖 DFS 文件系统
 - RT-Thread 3.0+，对 bsp 无依赖
 
@@ -110,7 +110,7 @@ msh />
 
 #### 3.4.1、ping 域名
 
-- msh/>里输入 `ping` [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) rt-thread.org，详情如下：
+- msh/>里输入 [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) `ping rt-thread.org`，详情如下：
 
 ```
 msh />ping rt-thread.org
@@ -123,7 +123,7 @@ msh />
 
 #### 3.4.2、ping IP
 
-- msh/>里输入 `ping` [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 192.168.1.121，详情如下： 
+- msh/>里输入 [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) `ping 192.168.1.121`，详情如下： 
 
 ```
 msh />ping 192.168.1.121
@@ -177,12 +177,11 @@ save in "text.pcap"
 msh />
 ```
 
-
 ### 4.2、ping
 
 #### 4.2.1、ping 域名
 
-- msh/>里输入 `ping` [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) rt-thread.org，详情如下：
+- msh/>里输入 [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) `ping rt-thread.org`，详情如下：
 
 ```
 msh />ping rt-thread.org
@@ -195,7 +194,7 @@ msh />
 
 #### 4.2.2、ping IP
 
-- msh/>里输入 `ping` [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 192.168.1.121，详情如下： 
+- msh/>里输入 [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) `ping 192.168.1.121`，详情如下： 
 
 ```
 msh />ping 192.168.1.121
@@ -231,7 +230,7 @@ msh />
 
 ### 4.5、抓包后处理
 
-使用rdb[]() 软件包将 xx.pcap 文件导入到PC，使用抓包软件 wireshark 直接进行网络流的分析
+使用 []() 软件包将 xx.pcap 文件导入到PC，使用抓包软件 wireshark 直接进行网络流的分析
 
 
 ## 5、命令补充说明
