@@ -94,10 +94,10 @@ msh />
 
 ### 3.3、开启抓包
 
-- msh/>里，输入 `tcpdump -ie0 -ssd -wtext.pcap`，详情如下：
+- msh/>里，输入 `tcpdump -ie0 -msd -wtext.pcap`，详情如下：
 
 ```
-msh />tcpdump -ie0 -ssd -wtext.pcap
+msh />tcpdump -ie0 -msd -wtext.pcap
 select "e0" network card device
 select "sd card" mode
 save in "text.pcap"
@@ -149,10 +149,10 @@ msh />
 
 ### 4.1、开启抓包
 
-- msh/>里，输入 `tcpdump -ie0 -srdb -wtext.pcap`，详情如下：
+- msh/>里，输入 `tcpdump -ie0 -mrdb -wtext.pcap`，详情如下：
 
 ```
-msh />tcpdump -ie0 -srdb -wtext.pcap
+msh />tcpdump -ie0 -mrdb -wtext.pcap
 select "e0" network card device
 select "rdb" mode
 save in "text.pcap"
@@ -291,35 +291,36 @@ msh />
 ```
 msh />tcpdump -h
 
-|<-------------------------- help ---------------------->|
-| tcpdump [-ph] [-i interface] [-m mode] [-w file]       |
-|                                                        |
-| -h: help                                               |
-| -i: specify the network interface for listening        |
-| -m: choose what mode to save the file                  |
-| -w: write the captured packets into an xxx.pcap file   |
-| -p: stop capturing packets                             |
-|                                                        |
-| e.g.:                                                  |
-| specify a network adapter device and save to an x file |
-| tcpdump -ie0 -ssd -wtext.pcap                          |
-| tcpdump -ie0 -srdb -wtext.pcap                         |
-|                                                        |
-| -m: sd-card mode                                       |
-| tcpdump -msd                                           |
-|                                                        |
-| -m: rdb mode                                           |
-| tcpdump -mrdb                                          |
-|                                                        |
-| -w: file                                               |
-| tcpdump -wtext.pcap                                    |
-|                                                        |
-| -p: stop                                               |
-| tcpdump -p                                             |
-|                                                        |
-| -h: help                                               |
-| tcpdump -h                                             |
-|<-------------------------- help ---------------------->|
+
+|>------------------------- help -------------------------<|
+| tcpdump [-ph] [-i interface] [-m mode] [-w file]         |
+|                                                          |
+| -h: help                                                 |
+| -i: specify the network interface for listening          |
+| -m: choose what mode to save the file                    |
+| -w: write the captured packets into an xxx.pcap file     |
+| -p: stop capturing packets                               |
+|                                                          |
+| e.g.:                                                    |
+| specify a network adapter device and save to an x file   |
+| tcpdump -ie0 -msd -wtext.pcap                            |
+| tcpdump -ie0 -mrdb -wtext.pcap                           |
+|                                                          |
+| -m: sd-card mode                                         |
+| tcpdump -msd                                             |
+|                                                          |
+| -m: rdb mode                                             |
+| tcpdump -mrdb                                            |
+|                                                          |
+| -w: file                                                 |
+| tcpdump -wtext.pcap                                      |
+|                                                          |
+| -p: stop                                                 |
+| tcpdump -p                                               |
+|                                                          |
+| -h: help                                                 |
+| tcpdump -h                                               |
+|>------------------------- help -------------------------<|
 
 msh />
 ```

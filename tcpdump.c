@@ -31,13 +31,13 @@
 #include "rdbd.h"
 
 #ifdef PKG_NETUTILS_TCPDUMP_DBG
-    #define DBG_ENABLE
+#define DBG_ENABLE
 
-    #define DBG_SECTION_NAME  "[TCPDUMP]"
-    #define DBG_LEVEL         DBG_INFO
-    #define DBG_COLOR
+#define DBG_SECTION_NAME  "[TCPDUMP]"
+#define DBG_LEVEL         DBG_INFO
+#define DBG_COLOR
 #else
-    #undef  DBG_ENABLE
+#undef  DBG_ENABLE
 #endif
 #include <rtdbg.h>
 
@@ -97,11 +97,11 @@ do {                                                            \
     do {                                                        \
     (_head)->ts.tv_sec = rt_tick_get() / RT_TICK_PER_SECOND;    \
     (_head)->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   \
-    (_head)->caplen = _p->tot_len;                               \
-    (_head)->len = _p->tot_len;                                  \
+    (_head)->caplen = _p->tot_len;                              \
+    (_head)->len = _p->tot_len;                                 \
     } while (0)
 
-#define CMP(a, b)   (rt_strcmp((a), (b)))
+#define STRCMP(a, R, b)   (rt_strcmp((a), (b)) (R) (0))
 
 struct rt_pcap_file_header
 {
@@ -511,8 +511,8 @@ static void rt_tcpdump_help_info_print(void)
     rt_kprintf("|                                                        |\n");
     rt_kprintf("| e.g.:                                                  |\n");
     rt_kprintf("| specify a network adapter device and save to an x file |\n");
-    rt_kprintf("| tcpdump -ie0 -ssd -wtext.pcap                          |\n");
-    rt_kprintf("| tcpdump -ie0 -srdb -wtext.pcap                         |\n");
+    rt_kprintf("| tcpdump -ie0 -msd -wtext.pcap                          |\n");
+    rt_kprintf("| tcpdump -ie0 -mrdb -wtext.pcap                         |\n");
     rt_kprintf("|                                                        |\n");
     rt_kprintf("| -m: sd-card mode                                       |\n");
     rt_kprintf("| tcpdump -msd                                           |\n");
@@ -729,6 +729,6 @@ static int tcpdump_test(int argc, char *argv[])
     return RT_EOK;
 }
 #ifdef RT_USING_FINSH
-    #include <finsh.h>
-    MSH_CMD_EXPORT_ALIAS(tcpdump_test, tcpdump, test optparse_short cmd.);
+#include <finsh.h>
+MSH_CMD_EXPORT_ALIAS(tcpdump_test, tcpdump, test optparse_short cmd.);
 #endif
