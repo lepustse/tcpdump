@@ -9,7 +9,7 @@ LIBS        = []
 LIBPATH     = []
 
 #src
-src += Glob('*.c')
+src += Glob(' *.c')
 
 group = DefineGroup('tcpdump', src, depend = ['PKG_NETUTILS_TCPDUMP'], CPPPATH = CPPPATH, LIBS = LIBS, LIBPATH = LIBPATH)
 
