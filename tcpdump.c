@@ -28,16 +28,15 @@
 #include <rtdef.h>
 #include "netif/ethernetif.h"
 #include "optparse.h"
-#include "rdbd.h"
 
 #ifdef PKG_NETUTILS_TCPDUMP_DBG
-#define DBG_ENABLE
+    #define DBG_ENABLE
 
-#define DBG_SECTION_NAME  "[TCPDUMP]"
-#define DBG_LEVEL         DBG_INFO
-#define DBG_COLOR
+    #define DBG_SECTION_NAME  "[TCPDUMP]"
+    #define DBG_LEVEL         DBG_INFO
+    #define DBG_COLOR
 #else
-#undef  DBG_ENABLE
+    #undef  DBG_ENABLE
 #endif
 #include <rtdbg.h>
 
@@ -82,26 +81,27 @@
 #define LINKTYPE_PRISM_HEADER       (119)             /* 802.11+Prism II monitor mode */
 #define LINKTYPE_AIRONET_HEADER     (120)             /* FreeBSD Aironet driver stuff */
 
+#define MSH_CMD ("phi::m::w::")     /* [-p] [-h] [-i] [-m] [-w] */
+#define STRCMP(a, R, b)   (rt_strcmp((a), (b)) R 0)
+
 #define PACP_FILE_HEADER_CREATE(_head)                          \
 do {                                                            \
-(_head)->magic = 0xa1b2c3d4;                                    \
-(_head)->version_major = 0x200;                                 \
-(_head)->version_minor = 0x400;                                 \
-(_head)->thiszone = 0;                                          \
-(_head)->sigfigs = 0;                                           \
-(_head)->snaplen = 0xff;                                        \
-(_head)->linktype = 1;                                          \
+    (_head)->magic = PCAP_FILE_ID;                              \
+    (_head)->version_major = PCAP_VERSION_MAJOR;                \
+    (_head)->version_minor = PCAP_VERSION_MINOR;                \
+    (_head)->thiszone = GREENWICH_MEAN_TIME;                    \
+    (_head)->sigfigs = PRECISION_OF_TIME_STAMP;                 \
+    (_head)->snaplen = MAX_LENTH_OF_CAPTURE_PKG;                \
+    (_head)->linktype = LINKTYPE_ETHERNET;                      \
 } while (0)
 
 #define PACP_PKTHDR_CREATE(_head, _p)                           \
-    do {                                                        \
+do{                                                             \
     (_head)->ts.tv_sec = rt_tick_get() / RT_TICK_PER_SECOND;    \
     (_head)->ts.tv_msec = rt_tick_get() % RT_TICK_PER_SECOND;   \
     (_head)->caplen = _p->tot_len;                              \
     (_head)->len = _p->tot_len;                                 \
-    } while (0)
-
-#define STRCMP(a, R, b)   (rt_strcmp((a), (b)) (R) (0))
+} while (0)
 
 struct rt_pcap_file_header
 {
@@ -120,7 +120,7 @@ struct rt_timeval
     rt_uint32_t tv_msec;
 };
 
-struct rt_pkthdr
+struct rt_pcap_pkthdr
 {
     struct rt_timeval ts;
     rt_uint32_t caplen;
@@ -131,13 +131,10 @@ enum rt_tcpdump_return_param
 {
     STOP = -2,
     HELP = -3,
-    INTERNET = -4,
-    WRITE = -5,
-    SAVEIN = -7,
-    INIT = -8,
 };
 
-static struct rdbd_device *d_to_h_pipe;
+/* rdb pipe */
+extern struct rt_device *d_to_h_pipe;
 
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
@@ -146,15 +143,16 @@ static netif_input_fn input;
 
 static const char *name;
 static char *filename;
-
 static const char *eth;
 static char *ethname;
-
+static const char *mode;
 static int fd = -1;
 
 static void rt_tcpdump_filename_del(void);
 static void rt_tcpdump_ethname_del(void);
 static void rt_tcpdump_error_info_deal(void);
+static void rt_tcpdump_init_indicate(void);
+static rt_err_t rt_tcpdump_pcap_file_save(const void *buf, int len);
 
 static rt_err_t (*tcpdump_write)(const void *buf, int len);
 
@@ -183,19 +181,6 @@ static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
                 rt_kprintf("%c", __is_print(buf[i + j]) ? buf[i + j] : '.');
         rt_kprintf("\n");
     }
-}
-
-static void rt_tcpdump_ip_mess_print(struct pbuf *p)
-{
-    rt_uint8_t *buf = (rt_uint8_t *)rt_malloc(p->tot_len);
-
-    RT_ASSERT(buf != RT_NULL);
-
-    pbuf_copy_partial(p, buf, p->tot_len, 0);
-
-    hex_dump(buf, p->tot_len);
-
-    rt_free(buf);
 }
 #endif
 
@@ -230,6 +215,7 @@ static err_t _netif_input(struct pbuf *p, struct netif *inp)
     return input(p, inp);
 }
 
+/* import pcap file into your PC through sd-card */
 static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 {
     int length;
@@ -269,9 +255,30 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
     return RT_EOK;
 }
 
+/* Import pcap file into your PC through rdb tools */
 static rt_err_t rt_tcpdump_pcap_file_save(const void *buf, int len)
 {
-    rt_device_write((rt_device_t)d_to_h_pipe, 0, buf, len);
+    rt_device_write(d_to_h_pipe, 0, buf, len);
+}
+
+/* write ip mess and print */
+static void rt_tcpdump_ip_mess_write(struct pbuf *p)
+{
+    rt_uint8_t *buf = (rt_uint8_t *)rt_malloc(p->tot_len);
+
+    RT_ASSERT(buf != RT_NULL);
+
+    pbuf_copy_partial(p, buf, p->tot_len, 0);
+
+#ifdef PKG_NETUTILS_TCPDUMP_PRINT
+    hex_dump(buf, p->tot_len);
+#endif
+
+    /* write ip mess */
+    if (tcpdump_write != RT_NULL)
+        tcpdump_write(buf, p->tot_len);
+
+    rt_free(buf);
 }
 
 /* write pcap file header */
@@ -280,20 +287,21 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
     struct rt_pcap_file_header file_header;
     int res = -1;
 
-    if (rt_device_open((rt_device_t)d_to_h_pipe, RT_DEVICE_OFLAG_WRONLY) != RT_EOK)
+    if (rt_device_open(d_to_h_pipe, RT_DEVICE_OFLAG_WRONLY) != RT_EOK)
     {
         dbg_log(DBG_LOG, "not found pipe device\n");
         return -RT_ERROR;
     }
 
-    PACP_FILE_HEADER_CREATE(&file_header);
+    if ((tcpdump_write != RT_NULL) && (tcpdump_write == rt_tcpdump_pcap_file_write))
+    {
+        PACP_FILE_HEADER_CREATE(&file_header);
+        res = tcpdump_write(&file_header, sizeof(file_header));
+    }
 
 #ifdef  PKG_NETUTILS_TCPDUMP_PRINT
     hex_dump((rt_uint8_t *)&file_header, PCAP_FILE_HEADER_SIZE);
 #endif
-
-    if (tcpdump_write != RT_NULL)
-        res = tcpdump_write(&file_header, sizeof(file_header));
 
     if (res != RT_EOK)
         return -RT_ERROR;
@@ -304,7 +312,7 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
 static void rt_tcpdump_thread_entry(void *param)
 {
     struct pbuf *pbuf = RT_NULL, *p = RT_NULL;
-    struct rt_pkthdr pkthdr;
+    struct rt_pcap_pkthdr pkthdr;
     rt_uint32_t mbval;
 
     while (1)
@@ -317,28 +325,22 @@ static void rt_tcpdump_thread_entry(void *param)
             RT_ASSERT(pbuf != RT_NULL);
 
             /* write pkthdr */
-            PACP_PKTHDR_CREATE(&pkthdr, p);
-            if (tcpdump_write != RT_NULL)
+            if ((tcpdump_write != RT_NULL) && (tcpdump_write == rt_tcpdump_pcap_file_write))
+            {
+                PACP_PKTHDR_CREATE(&pkthdr, p);
                 tcpdump_write(&pkthdr, sizeof(pkthdr));
+            }
 
 #ifdef  PKG_NETUTILS_TCPDUMP_PRINT
             hex_dump((rt_uint8_t *)&pkthdr, PCAP_PKTHDR_SIZE);
-            rt_tcpdump_ip_mess_print(p);
 #endif
-
-            while (p)
-            {
-                if (tcpdump_write != RT_NULL)
-                    tcpdump_write(p->payload, p->len);
-
-                p = p->next;
-            }
+            rt_tcpdump_ip_mess_write(p);
             pbuf_free(pbuf);
             pbuf = RT_NULL;
         }
         else
         {
-            dbg_log(DBG_INFO, "tcp dump thread exit\n");
+            dbg_log(DBG_INFO, "tcpdump stop and tcpdump thread exit!\n");
             close(fd);
             fd = -1;
             if (d_to_h_pipe != RT_NULL)
@@ -377,32 +379,6 @@ static void rt_tcpdump_ethname_del(void)
         rt_free(ethname);
 }
 
-static int rt_tcpdump_pipe_init(void)
-{
-    struct rdbd_device *rdbd;
-
-    rdbd = (struct rdbd_device *)rt_device_find("urdbd");
-    if (rdbd == RT_NULL)
-    {
-        LOG_E("rdbd device [%s] not found", "urdbd");
-
-        return -1;
-    }
-
-    d_to_h_pipe = (struct rdbd_device *)rdbd_pipe_create(rdbd, "tdrdb", RDBD_SERVICE_ID_TCP_DUMP, RDBD_PIPE_DEVICE_TO_HOST, 2048);
-    if (d_to_h_pipe == RT_NULL)
-    {
-        LOG_E("pipe device shin create failed");
-        return -1;
-    }
-
-    rt_kprintf("pipe init ok!\n");
-
-    return RT_EOK;
-}
-MSH_CMD_EXPORT(rt_tcpdump_pipe_init, rdbd_pipe_test_case);
-//INIT_COMPONENT_EXPORT(rt_tcpdump_pipe_init);
-
 static int rt_tcpdump_init(void)
 {
     struct eth_device *device;
@@ -413,10 +389,12 @@ static int rt_tcpdump_init(void)
     if (netif != RT_NULL)
     {
         dbg_log(DBG_ERROR, "This command is running, please stop before you use the \"tcpdump -p\" command!\n");
-        return RT_EOK;
+        return -RT_ERROR;
     }
 
-    /* sd card mode does not judge pipe */
+    rt_tcpdump_init_indicate();
+
+    /* sd-card mode does not judge pipe */
     if (tcpdump_write != rt_tcpdump_pcap_file_write)
     {
         if (d_to_h_pipe == RT_NULL)
@@ -445,7 +423,7 @@ static int rt_tcpdump_init(void)
         return -RT_ERROR;
     }
 
-    tid = rt_thread_create("tdth", rt_tcpdump_thread_entry, RT_NULL, 2048, 10, 10);
+    tid = rt_thread_create("tdth", rt_tcpdump_thread_entry, RT_NULL, 2048, 12, 10);
     if (tid == RT_NULL)
     {
         rt_mb_delete(tcpdump_mb);
@@ -459,6 +437,7 @@ static int rt_tcpdump_init(void)
 
     netif = device->netif;
 
+    /* linkoutput and input init */
     level = rt_hw_interrupt_disable();
     link_output = netif->linkoutput;
     netif->linkoutput = _netif_linkoutput;
@@ -466,6 +445,7 @@ static int rt_tcpdump_init(void)
     input = netif->input;
     netif->input = _netif_input;
     rt_hw_interrupt_enable(level);
+    /* linkoutput and input init */
 
     rt_thread_startup(tid);
     rt_tcpdump_pcap_file_init();
@@ -485,50 +465,54 @@ static void rt_tcpdump_deinit(void)
         return;
     }
 
+    /* linkoutput and input deinit */
     level = rt_hw_interrupt_disable();
     netif->linkoutput = link_output;
     netif->input = input;
     netif = RT_NULL;
     rt_hw_interrupt_enable(level);
+    /* linkoutput and input deinit */
 
     rt_mb_delete(tcpdump_mb);
     tcpdump_mb = RT_NULL;
-
-    dbg_log(DBG_INFO, "tcpdump stop!\n");
 }
 
 static void rt_tcpdump_help_info_print(void)
 {
     rt_kprintf("\n");
-    rt_kprintf("|<-------------------------- help ---------------------->|\n");
-    rt_kprintf("| tcpdump [-ph] [-i interface] [-m mode] [-w file]       |\n");
-    rt_kprintf("|                                                        |\n");
-    rt_kprintf("| -h: help                                               |\n");
-    rt_kprintf("| -i: specify the network interface for listening        |\n");
-    rt_kprintf("| -m: choose what mode to save the file                  |\n");
-    rt_kprintf("| -w: write the captured packets into an xxx.pcap file   |\n");
-    rt_kprintf("| -p: stop capturing packets                             |\n");
-    rt_kprintf("|                                                        |\n");
-    rt_kprintf("| e.g.:                                                  |\n");
-    rt_kprintf("| specify a network adapter device and save to an x file |\n");
-    rt_kprintf("| tcpdump -ie0 -msd -wtext.pcap                          |\n");
-    rt_kprintf("| tcpdump -ie0 -mrdb -wtext.pcap                         |\n");
-    rt_kprintf("|                                                        |\n");
-    rt_kprintf("| -m: sd-card mode                                       |\n");
-    rt_kprintf("| tcpdump -msd                                           |\n");
-    rt_kprintf("|                                                        |\n");
-    rt_kprintf("| -m: rdb mode                                           |\n");
-    rt_kprintf("| tcpdump -mrdb                                          |\n");
-    rt_kprintf("|                                                        |\n");
-    rt_kprintf("| -w: file                                               |\n");
-    rt_kprintf("| tcpdump -wtext.pcap                                    |\n");
-    rt_kprintf("|                                                        |\n");
-    rt_kprintf("| -p: stop                                               |\n");
-    rt_kprintf("| tcpdump -p                                             |\n");
-    rt_kprintf("|                                                        |\n");
-    rt_kprintf("| -h: help                                               |\n");
-    rt_kprintf("| tcpdump -h                                             |\n");
-    rt_kprintf("|<-------------------------- help ---------------------->|\n");
+    rt_kprintf("|>------------------------- help -------------------------<|\n");
+    rt_kprintf("| tcpdump [-p] [-h] [-i interface] [-m mode] [-w file]     |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| -h: help                                                 |\n");
+    rt_kprintf("| -i: specify the network interface for listening          |\n");
+    rt_kprintf("| -m: choose what mode to save the file                    |\n");
+    rt_kprintf("| -w: write the captured packets into an xxx.pcap file     |\n");
+    rt_kprintf("| -p: stop capturing packets                               |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| e.g.:                                                    |\n");
+    rt_kprintf("| specify network interface and select save mode \\         |\n");
+    rt_kprintf("| and specify filename                                     |\n");
+    rt_kprintf("| tcpdump -ie0 -msd -wtext.pcap                            |\n");
+    rt_kprintf("| tcpdump -ie0 -mrdb -wtext.pcap                           |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| -m: sd-card mode                                         |\n");
+    rt_kprintf("| tcpdump -msd                                             |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| -m: rdb mode                                             |\n");
+    rt_kprintf("| tcpdump -mrdb                                            |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| -w: file                                                 |\n");
+    rt_kprintf("| tcpdump -wtext.pcap                                      |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| -p: stop                                                 |\n");
+    rt_kprintf("| tcpdump -p                                               |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| -h: help                                                 |\n");
+    rt_kprintf("| tcpdump -h                                               |\n");
+    rt_kprintf("|                                                          |\n");
+    rt_kprintf("| write commands but no arguments are illegal!!            |\n");
+    rt_kprintf("| e.g.: tcpdump -i / -i -msd  / -i -msd -wtext.pcap        |\n");
+    rt_kprintf("|>------------------------- help -------------------------<|\n");
     rt_kprintf("\n");
 }
 
@@ -538,197 +522,181 @@ static void rt_tcpdump_error_info_deal(void)
     rt_tcpdump_help_info_print();
 }
 
-static int rt_tcpdump_single_parse(struct optparse *options)
+static void rt_tcpdump_init_indicate(void)
 {
-    if (options->optopt == 'p')
-    {
-        rt_tcpdump_deinit();
-        return STOP;
-    }
-    else if (options->optopt == 'h')
-    {
-        rt_tcpdump_help_info_print();
-        return HELP;
-    }
-    else
-    {
-        ;
-    }
-}
-
-static int rt_tcpdump_single_cmd(char *argv[], const char *cmd)
-{
-    int ch;
-    struct optparse options;
-    int invalid_argv = 0;   /* prevent illegal parameters. e.g.: tcpdump x */
-    int res;
-    optparse_init(&options, argv);
-
-    while ((ch = optparse(&options, cmd)) != -1)
-    {
-        invalid_argv = 1;
-
-        /* So the single command is called repeatedly, so it prevents repeated parsing */
-        if (*(argv[1] + 1) != *cmd)
-            return -RT_ERROR;
-
-        ch = ch;
-        res = rt_tcpdump_single_parse(&options);
-    }
-
-    if (invalid_argv == 0)
-    {
-        return -RT_ERROR;
-    }
-    return res;
-}
-
-static int rt_tcpdump_comp_parse(struct optparse *options)
-{
-    if (options->optopt == 'i')
-    {
-        if (options->optarg == RT_NULL)
-            return -RT_ERROR;
-        eth = options->optarg;
-        rt_kprintf("select \"%s\" network card device\n", eth);
-        return INTERNET;
-    }
-
-    else if (options->optopt == 'm')
-    {
-        if (options->optarg == RT_NULL)
-            return -RT_ERROR;
-
-        if (!CMP(options->optarg, "sd"))
-        {
-            rt_kprintf("select \"sd-card\" mode\n");
-            tcpdump_write = rt_tcpdump_pcap_file_write;
-            return SAVEIN;
-        }
-
-        if (!CMP(options->optarg, "rdb"))
-        {
-            rt_kprintf("select \"rdb\" mode\n");
-            tcpdump_write = rt_tcpdump_pcap_file_save;
-            return SAVEIN;
-        }
-        name = TCPDUMP_DEFAULT_NANE;
-    }
-
-    else if (options->optopt == 'w')
-    {
-        if (options->optarg == RT_NULL)
-            return -RT_ERROR;
-
-        name = options->optarg;
-        rt_kprintf("save in \"%s\"\n", name);
-
-        return WRITE;
-    }
-
-    else
-    {
-        return -RT_ERROR;
-    }
-}
-
-static int rt_tcpdump_comp_cmd(char *argv[], const char *cmd)
-{
-    int ch;
-    struct optparse options;
-    int res;
-    int invalid_argv = 0;   /* prevent illegal parameters. e.g.: tcpdump x */
-
-    optparse_init(&options, argv);
-
-    while ((ch = optparse(&options, cmd)) != -1)
-    {
-        invalid_argv = 1;
-
-        /* Prevent parameters that are not yet defined. e.g.: tcpdump -u */
-        if ((*(argv[1] + 1) != *cmd) && (*(argv[1] + 1) != *(cmd + 3)) \
-                && (*(argv[1] + 1) != *(cmd + 6)))
-            return -RT_ERROR;
-
-        ch = ch;
-        res = rt_tcpdump_comp_parse(&options);
-        if (res == -RT_ERROR)
-            return -RT_ERROR;
-    }
-
-    if (invalid_argv == 0)
-    {
-        return -RT_ERROR;
-    }
-
-    return res;
-}
-
-static int tcpdump_test(int argc, char *argv[])
-{
-    int res;
-    tcpdump_write = RT_NULL;
-
-    if (argc == 1)
-    {
-        eth = "e0";
-        name = TCPDUMP_DEFAULT_NANE;
-        tcpdump_write = rt_tcpdump_pcap_file_write;
-        rt_kprintf("default selection \"e0\" network card device\n");
-        rt_kprintf("default selection \"sd-card\" mode\n");
-        rt_kprintf("default selection \"sample.pcap\"\n");
-        rt_tcpdump_init();
-        return RT_EOK;
-    }
-
-    res = rt_tcpdump_single_cmd(argv, "p");
-    if (res  == STOP)
-        return RT_EOK;
-
-    res = rt_tcpdump_single_cmd(argv, "h");
-    if (res == HELP)
-        return RT_EOK;
-
-    res = rt_tcpdump_comp_cmd(argv, "i::m::w::");
-
-    if (res == INTERNET)
-        res = INIT;
-
-    if (res == SAVEIN)
-        res = SAVEIN;
-
-    if (res == WRITE)
-        res = INIT;
-
-    if (res == -RT_ERROR)
-    {
-        rt_tcpdump_error_info_deal();
-        return -RT_ERROR;
-    }
-
-    if (name == RT_NULL)
-    {
-        rt_kprintf("default selection \"sample.pcap\"\n");
-        name = TCPDUMP_DEFAULT_NANE;
-    }
+    int name_flag = 0, eth_flag = 0, mode_flag = 0;
 
     if (eth == RT_NULL)
     {
-        rt_kprintf("default selection \"e0\" network card device\n");
+        rt_kprintf("[TCPDUMP]default selection [e0] network card device\n");
         eth = "e0";
+        eth_flag = 1;
     }
 
     if (tcpdump_write == RT_NULL)
     {
-        rt_kprintf("default selection \"sd-card\" mode\n");
+        rt_kprintf("[TCPDUMP]default selection [sd-card] mode\n");
         tcpdump_write = rt_tcpdump_pcap_file_write;
+        mode_flag = 1;
     }
+
+    if (name == RT_NULL)
+    {
+        rt_kprintf("[TCPDUMP]default selection [sample.pcap]\n");
+        name = TCPDUMP_DEFAULT_NANE;
+        name_flag = 1;
+    }
+
+    if (eth_flag == 0)
+        rt_kprintf("[TCPDUMP]select  [%s] network card device\n", eth);
+
+    if (mode_flag == 0)
+    {
+        if (STRCMP(mode, ==, "sd"))
+            rt_kprintf("[TCPDUMP]select  [sd-card] mode\n");
+
+        if (STRCMP(mode, ==, "rdb"))
+            rt_kprintf("[TCPDUMP]select  [rdb] mode\n");
+    }
+
+    if (name_flag == 0)
+        rt_kprintf("[TCPDUMP]save in [%s]\n", name);
+}
+
+static int rt_tcpdump_cmd_deal(struct optparse *options)
+{
+    switch (options->optopt)
+    {
+    case 'p':
+        rt_tcpdump_deinit();
+        return STOP;
+        break;
+
+    case 'h':
+        rt_tcpdump_help_info_print();
+        return HELP;
+        break;
+
+    case 'i':
+        if (options->optarg == RT_NULL)
+            return -RT_ERROR;
+
+        eth = options->optarg;
+        return RT_EOK;
+        break;
+
+    case 'm':
+        if (options->optarg == RT_NULL)
+            return -RT_ERROR;
+
+        if (STRCMP(options->optarg, ==, "sd"))
+        {
+            mode = options->optarg;
+            tcpdump_write = rt_tcpdump_pcap_file_write;
+            return RT_EOK;
+        }
+        if (STRCMP(options->optarg, ==, "rdb"))
+        {
+            tcpdump_write = rt_tcpdump_pcap_file_save;
+            return RT_EOK;
+        }
+        break;
+
+    case 'w':
+        if (options->optarg == RT_NULL)
+            return -RT_ERROR;
+
+        name = options->optarg;
+        break;
+
+    default:
+        return -RT_ERROR;
+        break;
+    }
+}
+
+static int rt_tcpdump_cmd_parse(char *argv[], const char *cmd)
+{
+    int ch, res, invalid_argv = 0;
+    struct optparse options;
+
+    optparse_init(&options, argv);
+
+    while ((ch = optparse(&options, cmd)) != -1)
+    {
+        ch = ch;
+        invalid_argv = 1;
+
+        switch (options.optopt)
+        {
+        case 'p':
+            return rt_tcpdump_cmd_deal(&options);
+            break;
+
+        case 'h':
+            return rt_tcpdump_cmd_deal(&options);
+            break;
+
+        case 'i':
+            res = rt_tcpdump_cmd_deal(&options);
+            break;
+
+        case 'm':
+            res = rt_tcpdump_cmd_deal(&options);
+            break;
+
+        case 'w':
+            res = rt_tcpdump_cmd_deal(&options);
+            break;
+
+        default:
+            rt_tcpdump_help_info_print();
+            return -RT_ERROR;
+            break;
+        }
+
+        if (res == -RT_ERROR)
+        {
+            rt_tcpdump_help_info_print();
+            return res;
+        }
+    }
+
+    if (invalid_argv == 0)
+    {
+        rt_tcpdump_help_info_print();
+        return -RT_ERROR;
+    }
+
+    return RT_EOK;
+}
+
+static int tcpdump_test(int argc, char *argv[])
+{
+    int res = 0;
+
+    if (argc == 1)
+    {
+        rt_tcpdump_init();
+        return RT_EOK;
+    }
+
+    res = rt_tcpdump_cmd_parse(argv, MSH_CMD);
+
+    if (res == STOP)
+        return RT_EOK;
+
+    if (res == HELP)
+        return RT_EOK;
+
+    if (res == -RT_ERROR)
+        return -RT_ERROR;
 
     rt_tcpdump_init();
 
     return RT_EOK;
 }
 #ifdef RT_USING_FINSH
-#include <finsh.h>
-MSH_CMD_EXPORT_ALIAS(tcpdump_test, tcpdump, test optparse_short cmd.);
+    #include <finsh.h>
+    MSH_CMD_EXPORT_ALIAS(tcpdump_test, tcpdump, test optparse_short cmd.);
 #endif
