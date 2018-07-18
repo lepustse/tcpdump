@@ -217,7 +217,7 @@ static err_t _netif_input(struct pbuf *p, struct netif *inp)
     return input(p, inp);
 }
 
-/* import pcap file into your PC through sd-card */
+/* import pcap file into your PC through file-system */
 static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 {
     int length;
@@ -261,6 +261,7 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 static rt_err_t rt_tcpdump_pcap_file_save(const void *buf, int len)
 {
     rt_device_write(tcpdump_pipe, 0, buf, len);
+    return RT_EOK;
 }
 
 /* write ip mess and print */
@@ -297,7 +298,7 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
             return -RT_ERROR;
         }
     }
-    
+
     if ((tcpdump_write != RT_NULL) && (tcpdump_write == rt_tcpdump_pcap_file_write))
     {
         PACP_FILE_HEADER_CREATE(&file_header);
@@ -316,7 +317,7 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
 
 static void rt_tcpdump_thread_entry(void *param)
 {
-    struct pbuf *pbuf = RT_NULL, *p = RT_NULL;
+    struct pbuf *pbuf = RT_NULL;
     struct rt_pcap_pkthdr pkthdr;
     rt_uint32_t mbval;
 
@@ -325,21 +326,19 @@ static void rt_tcpdump_thread_entry(void *param)
         if (rt_mb_recv(tcpdump_mb, &mbval, RT_WAITING_FOREVER) == RT_EOK)
         {
             pbuf = (struct pbuf *)mbval;
-            p = pbuf;
-
             RT_ASSERT(pbuf != RT_NULL);
 
             /* write pkthdr */
             if ((tcpdump_write != RT_NULL) && (tcpdump_write == rt_tcpdump_pcap_file_write))
             {
-                PACP_PKTHDR_CREATE(&pkthdr, p);
+                PACP_PKTHDR_CREATE(&pkthdr, pbuf);
                 tcpdump_write(&pkthdr, sizeof(pkthdr));
             }
 
 #ifdef  PKG_NETUTILS_TCPDUMP_PRINT
             hex_dump((rt_uint8_t *)&pkthdr, PCAP_PKTHDR_SIZE);
 #endif
-            rt_tcpdump_ip_mess_write(p);
+            rt_tcpdump_ip_mess_write(pbuf);
             pbuf_free(pbuf);
             pbuf = RT_NULL;
         }
@@ -350,6 +349,7 @@ static void rt_tcpdump_thread_entry(void *param)
             fd = -1;
             if (tcpdump_pipe != RT_NULL)
                 rt_device_close((rt_device_t)tcpdump_pipe);
+
             tcpdump_write = RT_NULL;
             rt_tcpdump_filename_del();
             rt_tcpdump_ethname_del();
@@ -387,13 +387,13 @@ static void rt_tcpdump_ethname_del(void)
 static int rt_tcpdump_init(void)
 {
     struct eth_device *device;
-    
+
     rt_thread_t tid;
     rt_base_t level;
 
     if (netif != RT_NULL)
     {
-        dbg_log(DBG_ERROR, "This command is running, please stop before you use the \"tcpdump -p\" command!\n");
+        dbg_log(DBG_ERROR, "This command is running, please stop before you use the [tcpdump -p] command!\n");
         return -RT_ERROR;
     }
 
@@ -413,7 +413,8 @@ static int rt_tcpdump_init(void)
     device = (struct eth_device *)rt_device_find(eth);
     if (device == RT_NULL)
     {
-        dbg_log(DBG_ERROR, "network interface card \"%s\" device not find!\n", eth);
+        dbg_log(DBG_ERROR, "network interface card [%s] device not find!\n", eth);
+        dbg_log(DBG_ERROR, "tcpdump thread startup failed and enter the correct network interface please\n");
         return -RT_ERROR;
     }
     if ((device->netif == RT_NULL) || (device->netif->linkoutput == RT_NULL))
@@ -429,12 +430,12 @@ static int rt_tcpdump_init(void)
         return -RT_ERROR;
     }
 
-    tid = rt_thread_create("tdth", rt_tcpdump_thread_entry, RT_NULL, 2048, 12, 10);
+    tid = rt_thread_create("tcpdump", rt_tcpdump_thread_entry, RT_NULL, 2048, 12, 10);
     if (tid == RT_NULL)
     {
         rt_mb_delete(tcpdump_mb);
         tcpdump_mb = RT_NULL;
-        dbg_log(DBG_ERROR, "tcp dump thread create fail!\n");
+        dbg_log(DBG_ERROR, "tcpdump thread create fail!\n");
         return -RT_ERROR;
     }
 
@@ -453,8 +454,9 @@ static int rt_tcpdump_init(void)
     rt_hw_interrupt_enable(level);
     /* linkoutput and input init */
 
-    rt_thread_startup(tid);
     rt_tcpdump_pcap_file_init();
+
+    rt_thread_startup(tid);
 
     dbg_log(DBG_INFO, "tcpdump start!\n");
 
@@ -534,7 +536,7 @@ static void rt_tcpdump_init_indicate(void)
 
     if (eth == RT_NULL)
     {
-        rt_kprintf("[TCPDUMP]default selection [e0] network card device\n");
+        rt_kprintf("[TCPDUMP]default selection [e0] network interface\n");
         eth = "e0";
         eth_flag = 1;
     }
@@ -548,13 +550,13 @@ static void rt_tcpdump_init_indicate(void)
 
     if (name == RT_NULL)
     {
-        rt_kprintf("[TCPDUMP]default selection [sample.pcap]\n");
+        rt_kprintf("[TCPDUMP]default save in [sample.pcap]\n");
         name = TCPDUMP_DEFAULT_NANE;
         name_flag = 1;
     }
 
     if (eth_flag == 0)
-        rt_kprintf("[TCPDUMP]select  [%s] network card device\n", eth);
+        rt_kprintf("[TCPDUMP]select  [%s] network interface\n", eth);
 
     if (mode_flag == 0)
     {
@@ -576,12 +578,10 @@ static int rt_tcpdump_cmd_deal(struct optparse *options)
     case 'p':
         rt_tcpdump_deinit();
         return STOP;
-        break;
 
     case 'h':
         rt_tcpdump_help_info_print();
         return HELP;
-        break;
 
     case 'i':
         if (options->optarg == RT_NULL)
@@ -589,7 +589,6 @@ static int rt_tcpdump_cmd_deal(struct optparse *options)
 
         eth = options->optarg;
         return RT_EOK;
-        break;
 
     case 'm':
         if (options->optarg == RT_NULL)
@@ -601,13 +600,16 @@ static int rt_tcpdump_cmd_deal(struct optparse *options)
             tcpdump_write = rt_tcpdump_pcap_file_write;
             return RT_EOK;
         }
-        
+
         if (STRCMP(options->optarg, ==, "rdb"))
         {
+            mode = options->optarg;
             tcpdump_write = rt_tcpdump_pcap_file_save;
             return RT_EOK;
         }
-        break;
+
+        /* User input Error */
+        return -RT_ERROR;
 
     case 'w':
         if (options->optarg == RT_NULL)
@@ -618,8 +620,9 @@ static int rt_tcpdump_cmd_deal(struct optparse *options)
 
     default:
         return -RT_ERROR;
-        break;
     }
+
+    return RT_EOK;
 }
 
 static int rt_tcpdump_cmd_parse(char *argv[], const char *cmd)
@@ -638,11 +641,9 @@ static int rt_tcpdump_cmd_parse(char *argv[], const char *cmd)
         {
         case 'p':
             return rt_tcpdump_cmd_deal(&options);
-            break;
 
         case 'h':
             return rt_tcpdump_cmd_deal(&options);
-            break;
 
         case 'i':
             res = rt_tcpdump_cmd_deal(&options);
@@ -657,25 +658,31 @@ static int rt_tcpdump_cmd_parse(char *argv[], const char *cmd)
             break;
 
         default:
-            rt_tcpdump_help_info_print();
+            rt_tcpdump_error_info_deal();
             return -RT_ERROR;
-            break;
         }
 
         if (res == -RT_ERROR)
         {
-            rt_tcpdump_help_info_print();
+            rt_tcpdump_error_info_deal();
             return res;
         }
     }
 
     if (invalid_argv == 0)
     {
-        rt_tcpdump_help_info_print();
+        rt_tcpdump_error_info_deal();
         return -RT_ERROR;
     }
 
     return RT_EOK;
+}
+
+static void rt_tcpdump_cmd_argv_deinit(void)
+{
+    eth = RT_NULL;
+    tcpdump_write = RT_NULL;
+    name = RT_NULL;
 }
 
 static int tcpdump_test(int argc, char *argv[])
@@ -684,9 +691,12 @@ static int tcpdump_test(int argc, char *argv[])
 
     if (argc == 1)
     {
+        rt_tcpdump_cmd_argv_deinit();
         rt_tcpdump_init();
         return RT_EOK;
     }
+
+    rt_tcpdump_cmd_argv_deinit();
 
     res = rt_tcpdump_cmd_parse(argv, MSH_CMD);
 
