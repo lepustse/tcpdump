@@ -40,6 +40,8 @@
 #endif
 #include <rtdbg.h>
 
+#define TCPDUMP_PIPE_DEVICE         ("urdbd")           /* rdb pipe */
+
 #define TCPDUMP_DEFAULT_NANE        ("sample.pcap")
 
 #define TCPDUMP_MAX_MSG             (10)
@@ -54,34 +56,34 @@
 #define MAX_LENTH_OF_CAPTURE_PKG    (0xFFFF)
 
 #define LINKTYPE_NULL               (0)
-#define LINKTYPE_ETHERNET           (1)               /* also for 100Mb and up */
-#define LINKTYPE_EXP_ETHERNET       (2)               /* 3Mb experimental Ethernet */
+#define LINKTYPE_ETHERNET           (1)                 /* also for 100Mb and up */
+#define LINKTYPE_EXP_ETHERNET       (2)                 /* 3Mb experimental Ethernet */
 #define LINKTYPE_AX25               (3)
 #define LINKTYPE_PRONET             (4)
 #define LINKTYPE_CHAOS              (5)
-#define LINKTYPE_TOKEN_RING         (6)               /* DLT_IEEE802 is used for Token Ring */
+#define LINKTYPE_TOKEN_RING         (6)                 /* DLT_IEEE802 is used for Token Ring */
 #define LINKTYPE_ARCNET             (7)
 #define LINKTYPE_SLIP               (8)
 #define LINKTYPE_PPP                (9)
 #define LINKTYPE_FDDI               (10)
-#define LINKTYPE_PPP_HDLC           (50)              /* PPP in HDLC-like framing */
-#define LINKTYPE_PPP_ETHER          (51)              /* NetBSD PPP-over-Ethernet */
-#define LINKTYPE_ATM_RFC1483        (100)             /* LLC/SNAP-encapsulated ATM */
-#define LINKTYPE_RAW                (101)             /* raw IP */
-#define LINKTYPE_SLIP_BSDOS         (102)             /* BSD/OS SLIP BPF header */
-#define LINKTYPE_PPP_BSDOS          (103)             /* BSD/OS PPP BPF header */
-#define LINKTYPE_C_HDLC             (104)             /* Cisco HDLC */
-#define LINKTYPE_IEEE802_11         (105)             /* IEEE 802.11 (wireless) */
-#define LINKTYPE_ATM_CLIP           (106)             /* Linux Classical IP over ATM */
-#define LINKTYPE_LOOP               (108)             /* OpenBSD loopback */
-#define LINKTYPE_LINUX_SLL          (113)             /* Linux cooked socket capture */
-#define LINKTYPE_LTALK              (114)             /* Apple LocalTalk hardware */
-#define LINKTYPE_ECONET             (115)             /* Acorn Econet */
-#define LINKTYPE_CISCO_IOS          (118)             /* For Cisco-internal use */
-#define LINKTYPE_PRISM_HEADER       (119)             /* 802.11+Prism II monitor mode */
-#define LINKTYPE_AIRONET_HEADER     (120)             /* FreeBSD Aironet driver stuff */
+#define LINKTYPE_PPP_HDLC           (50)                /* PPP in HDLC-like framing */
+#define LINKTYPE_PPP_ETHER          (51)                /* NetBSD PPP-over-Ethernet */
+#define LINKTYPE_ATM_RFC1483        (100)               /* LLC/SNAP-encapsulated ATM */
+#define LINKTYPE_RAW                (101)               /* raw IP */
+#define LINKTYPE_SLIP_BSDOS         (102)               /* BSD/OS SLIP BPF header */
+#define LINKTYPE_PPP_BSDOS          (103)               /* BSD/OS PPP BPF header */
+#define LINKTYPE_C_HDLC             (104)               /* Cisco HDLC */
+#define LINKTYPE_IEEE802_11         (105)               /* IEEE 802.11 (wireless) */
+#define LINKTYPE_ATM_CLIP           (106)               /* Linux Classical IP over ATM */
+#define LINKTYPE_LOOP               (108)               /* OpenBSD loopback */
+#define LINKTYPE_LINUX_SLL          (113)               /* Linux cooked socket capture */
+#define LINKTYPE_LTALK              (114)               /* Apple LocalTalk hardware */
+#define LINKTYPE_ECONET             (115)               /* Acorn Econet */
+#define LINKTYPE_CISCO_IOS          (118)               /* For Cisco-internal use */
+#define LINKTYPE_PRISM_HEADER       (119)               /* 802.11+Prism II monitor mode */
+#define LINKTYPE_AIRONET_HEADER     (120)               /* FreeBSD Aironet driver stuff */
 
-#define MSH_CMD ("phi::m::w::")     /* [-p] [-h] [-i] [-m] [-w] */
+#define MSH_CMD ("phi::m::w::")                         /* [-p] [-h] [-i] [-m] [-w] */
 #define STRCMP(a, R, b)   (rt_strcmp((a), (b)) R 0)
 
 #define PACP_FILE_HEADER_CREATE(_head)                          \
@@ -134,7 +136,7 @@ enum rt_tcpdump_return_param
 };
 
 /* rdb pipe */
-extern struct rt_device *d_to_h_pipe;
+static struct rt_device *tcpdump_pipe;
 
 static struct rt_mailbox *tcpdump_mb;
 static struct netif *netif;
@@ -258,7 +260,7 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 /* Import pcap file into your PC through rdb tools */
 static rt_err_t rt_tcpdump_pcap_file_save(const void *buf, int len)
 {
-    rt_device_write(d_to_h_pipe, 0, buf, len);
+    rt_device_write(tcpdump_pipe, 0, buf, len);
 }
 
 /* write ip mess and print */
@@ -287,12 +289,15 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
     struct rt_pcap_file_header file_header;
     int res = -1;
 
-    if (rt_device_open(d_to_h_pipe, RT_DEVICE_OFLAG_WRONLY) != RT_EOK)
+    if (tcpdump_pipe != RT_NULL)
     {
-        dbg_log(DBG_LOG, "not found pipe device\n");
-        return -RT_ERROR;
+        if (rt_device_open(tcpdump_pipe, RT_DEVICE_OFLAG_WRONLY) != RT_EOK)
+        {
+            dbg_log(DBG_LOG, "not found pipe device\n");
+            return -RT_ERROR;
+        }
     }
-
+    
     if ((tcpdump_write != RT_NULL) && (tcpdump_write == rt_tcpdump_pcap_file_write))
     {
         PACP_FILE_HEADER_CREATE(&file_header);
@@ -343,8 +348,8 @@ static void rt_tcpdump_thread_entry(void *param)
             dbg_log(DBG_INFO, "tcpdump stop and tcpdump thread exit!\n");
             close(fd);
             fd = -1;
-            if (d_to_h_pipe != RT_NULL)
-                rt_device_close((rt_device_t)d_to_h_pipe);
+            if (tcpdump_pipe != RT_NULL)
+                rt_device_close((rt_device_t)tcpdump_pipe);
             tcpdump_write = RT_NULL;
             rt_tcpdump_filename_del();
             rt_tcpdump_ethname_del();
@@ -382,7 +387,7 @@ static void rt_tcpdump_ethname_del(void)
 static int rt_tcpdump_init(void)
 {
     struct eth_device *device;
-
+    
     rt_thread_t tid;
     rt_base_t level;
 
@@ -394,10 +399,11 @@ static int rt_tcpdump_init(void)
 
     rt_tcpdump_init_indicate();
 
-    /* sd-card mode does not judge pipe */
+    tcpdump_pipe = rt_device_find(TCPDUMP_PIPE_DEVICE);
+    /* file-system mode does not judge pipe */
     if (tcpdump_write != rt_tcpdump_pcap_file_write)
     {
-        if (d_to_h_pipe == RT_NULL)
+        if (tcpdump_pipe == RT_NULL)
         {
             dbg_log(DBG_ERROR, "pipe is error\n");
             return -RT_ERROR;
