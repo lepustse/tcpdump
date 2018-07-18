@@ -3,15 +3,17 @@
 ## 1、介绍
 这是一个基于 RT-Thread 的捕获IP报文的小工具， 抓包的数据可以通过文件系统保存，或者通过 rdb 工具导入PC，利用 wireshark 软件解析。
 
+
+
 ### 1.1、依赖
 
 - 依赖 [optparse](https://github.com/liu2guang/optparse) 软件包 
-- 依赖 DFS 文件系统
+- 依赖 [dfs](https://www.rt-thread.org/document/site/rtthread-development-guide/rtthread-manual-doc/zh/1chapters/12-chapter_filesystem/) 文件系统
 - 依赖 [env](https://www.rt-thread.org/document/site/rtthread-development-guide/rtthread-tool-manual/env/env-user-manual/) 工具
 - RT-Thread 3.0+，对 bsp 无依赖
 
 ### 1.2、获取方式
-- 使用 menuconfig 使能 tcpdump 
+- 使用 menuconfig 使能 tcpdump，详情如下： 
 
 ```
   RT-Thread online packages --->
@@ -23,17 +25,21 @@
 ```
 保存 menuconfig 配置后使用 `pkgs --update` 命令下载软件包
 
-注：调试信息建议不要关闭
+> 注：调试信息建议不关闭
+
+
 
 ## 2、使用
 
 ### 2.1、tcpdump命令含义
 
-- -i: 指定监听的网络接口 
-- -m: 选择保存方式（文件系统 或 rdb）
-- -w: 用户指定的文件名 xx.pcap
-- -p: 停止抓包
-- -h: 帮助信息
+```
+-i: 指定监听的网络接口
+-m: 选择保存模式（文件系统 或 rdb）
+-w: 用户指定的文件名 xx.pcap
+-p: 停止抓包
+-h: 帮助信息
+```
 
 ### 2.2、命令详情
 ```
@@ -44,18 +50,18 @@ msh />tcpdump -h
 |                                                          |
 | -h: help                                                 |
 | -i: specify the network interface for listening          |
-| -m: choose what mode to save the file                    |
-| -w: write the captured packets into an xxx.pcap file     |
+| -m: choose what mode(file-system or rdb) to save the file|
+| -w: write the captured packets into an xx.pcap file      |
 | -p: stop capturing packets                               |
 |                                                          |
 | e.g.:                                                    |
 | specify network interface and select save mode \         |
 | and specify filename                                     |
-| tcpdump -ie0 -msd -wtext.pcap                            |
+| tcpdump -ie0 -mfile -wtext.pcap                          |
 | tcpdump -ie0 -mrdb -wtext.pcap                           |
 |                                                          |
-| -m: sd-card mode                                         |
-| tcpdump -msd                                             |
+| -m: file-system mode                                     |
+| tcpdump -mfile                                           |
 |                                                          |
 | -m: rdb mode                                             |
 | tcpdump -mrdb                                            |
@@ -70,15 +76,17 @@ msh />tcpdump -h
 | tcpdump -h                                               |
 |                                                          |
 | write commands but no arguments are illegal!!            |
-| e.g.: tcpdump -i / -i -msd  / -i -msd -wtext.pcap        |
+| e.g.: tcpdump -i / -i -mfile  / -i -mfile -wtext.pcap    |
 |>------------------------- help -------------------------<|
 
 msh />
 ```
 
+
+
 ## 3、使用文件系统保存抓包的数据
 
-我们这里是把 sd-card 挂载文件系统
+> 我们这里是把 sd-card 挂载文件系统
 
 ### 3.1、抓包前准备
 
@@ -117,10 +125,10 @@ msh />
 
 ### 3.2、抓包前检查
 
-抓包前请确认板子的 IP 地址
+> 抓包前请确认板子的 IP 地址
 
 
-- msh/>里，输入 `ifconfig` 查看，详情如下：
+- msh />里，输入 `ifconfig` 查看，详情如下：
 
 ```
 msh />
@@ -138,18 +146,18 @@ msh />
 
 ### 3.3、开始抓包
 
-- msh/>里，输入 `tcpdump -ie0 -msd -wtext.pcap`，详情如下：
+- msh />里，输入 `tcpdump -ie0 -mfile -wtext.pcap`，详情如下：
 
 ```
 msh />tcpdump -ie0 -msd -wtext.pcap
 [TCPDUMP]select  [e0] network card device
-[TCPDUMP]select  [sd-card] mode
+[TCPDUMP]select  [file-system] mode
 [TCPDUMP]save in [text.pcap]
 [TCPDUMP]tcpdump start!
 msh />
 ```
 
-- 使用抓包命令会创建一个线程，线程的优先级是12。目的是与 lwip 的发送、接收线程优先级保持一致。
+- 使用抓包命令会创建一个线程，线程的优先级是12。
 - 输入 `list_thread` 命令查看运行中的线程，线程名字是 `tdth`，详情如下：
 
 ```
@@ -172,9 +180,7 @@ msh />
 
 ### 3.4、抓包测试
 
-
-
-使用 [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) `ping` 命令来进行抓包测试，`ping` 命令需要在 menuconfig 配置使能 
+> 使用 [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 命令来进行抓包测试，`ping` 命令需要在 menuconfig 配置使能，详情如下：
 
 ```
   RT-Thread online packages --->
@@ -185,7 +191,7 @@ msh />
 
 #### 3.4.1、ping 域名
 
-- msh/>里输入 `ping rt-thread.org`，详情如下：
+- msh />里输入 `ping rt-thread.org`，详情如下：
 
 ```
 msh />ping rt-thread.org
@@ -198,7 +204,7 @@ msh />
 
 #### 3.4.2、ping IP
 
-- msh/>里输入 `ping 192.168.1.121`，详情如下： 
+- msh />里输入 `ping 192.168.1.121`，详情如下： 
 
 ```
 msh />ping 192.168.1.121
@@ -211,7 +217,7 @@ msh />
 
 ### 3.5、停止抓包
 
-- msh/>里，输入 `tcpdump -p`，详情如下：
+- msh />里，输入 `tcpdump -p`，详情如下：
 
 ```
 msh />tcpdump -p
@@ -221,7 +227,7 @@ msh />
 
 ### 3.6、查看结果
 
-- msh/>里，输入 `ls` 查看保存结果，详情如下：
+- msh />里，输入 `ls` 查看保存结果，详情如下：
 
 ```
 msh />ls
@@ -236,11 +242,12 @@ msh />
 使用读卡器将保存在 sd-card 里的 xx.pcap 文件拷贝到 PC，使用抓包软件 wireshark 直接进行网络流的分析
 
 
+
 ## 4、抓包文件通过 rdb 工具导入PC
 
 ### 4.1、开启抓包
 
-- msh/>里，输入 `tcpdump -ie0 -mrdb -wtext.pcap`，详情如下：
+- msh />里，输入 `tcpdump -ie0 -mrdb -wtext.pcap`，详情如下：
 
 ```
 msh />tcpdump -ie0 -mrdb -wtext.pcap
@@ -253,11 +260,11 @@ msh />
 
 ### 4.2、抓包测试
 
-请参考 3.4 的操作
+- 请参考 3.4 的操作
 
 ### 4.3、停止抓包
 
-- msh/>里，输入 `tcpdump -p`，详情如下：
+- msh />里，输入 `tcpdump -p`，详情如下：
 
 ```
 msh />tcpdump -p
@@ -267,7 +274,7 @@ msh />
 
 ### 4.4、查看结果
 
-- msh/>里，输入 `ls` 查看保存结果，详情如下：
+- msh />里，输入 `ls` 查看保存结果，详情如下：
 
 ```
 msh />ls
@@ -282,10 +289,13 @@ msh />
 使用 rdb 工具将 xx.pcap 文件导入到PC，使用抓包软件 wireshark 直接进行网络流的分析
 
 
+
 ## 5、注意事项
 
 - tcpdump 工具是需要开启 lwip 的 发送、接收线程的
 - 抓包结束或者不想抓包了，请输入 `tcpdump -p` 结束抓包
+
+
 
 ## 6、联系方式 & 感谢
 

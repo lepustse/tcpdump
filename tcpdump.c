@@ -485,18 +485,18 @@ static void rt_tcpdump_help_info_print(void)
     rt_kprintf("|                                                          |\n");
     rt_kprintf("| -h: help                                                 |\n");
     rt_kprintf("| -i: specify the network interface for listening          |\n");
-    rt_kprintf("| -m: choose what mode to save the file                    |\n");
-    rt_kprintf("| -w: write the captured packets into an xxx.pcap file     |\n");
+    rt_kprintf("| -m: choose what mode(file-system or rdb) to save the file|\n");
+    rt_kprintf("| -w: write the captured packets into an xx.pcap file      |\n");
     rt_kprintf("| -p: stop capturing packets                               |\n");
     rt_kprintf("|                                                          |\n");
     rt_kprintf("| e.g.:                                                    |\n");
     rt_kprintf("| specify network interface and select save mode \\         |\n");
     rt_kprintf("| and specify filename                                     |\n");
-    rt_kprintf("| tcpdump -ie0 -msd -wtext.pcap                            |\n");
+    rt_kprintf("| tcpdump -ie0 -mfile -wtext.pcap                          |\n");
     rt_kprintf("| tcpdump -ie0 -mrdb -wtext.pcap                           |\n");
     rt_kprintf("|                                                          |\n");
-    rt_kprintf("| -m: sd-card mode                                         |\n");
-    rt_kprintf("| tcpdump -msd                                             |\n");
+    rt_kprintf("| -m: file-system mode                                     |\n");
+    rt_kprintf("| tcpdump -mfile                                           |\n");
     rt_kprintf("|                                                          |\n");
     rt_kprintf("| -m: rdb mode                                             |\n");
     rt_kprintf("| tcpdump -mrdb                                            |\n");
@@ -511,7 +511,7 @@ static void rt_tcpdump_help_info_print(void)
     rt_kprintf("| tcpdump -h                                               |\n");
     rt_kprintf("|                                                          |\n");
     rt_kprintf("| write commands but no arguments are illegal!!            |\n");
-    rt_kprintf("| e.g.: tcpdump -i / -i -msd  / -i -msd -wtext.pcap        |\n");
+    rt_kprintf("| e.g.: tcpdump -i / -i -mfile  / -i -mfile -wtext.pcap    |\n");
     rt_kprintf("|>------------------------- help -------------------------<|\n");
     rt_kprintf("\n");
 }
@@ -535,7 +535,7 @@ static void rt_tcpdump_init_indicate(void)
 
     if (tcpdump_write == RT_NULL)
     {
-        rt_kprintf("[TCPDUMP]default selection [sd-card] mode\n");
+        rt_kprintf("[TCPDUMP]default selection [file-system] mode\n");
         tcpdump_write = rt_tcpdump_pcap_file_write;
         mode_flag = 1;
     }
@@ -552,8 +552,8 @@ static void rt_tcpdump_init_indicate(void)
 
     if (mode_flag == 0)
     {
-        if (STRCMP(mode, ==, "sd"))
-            rt_kprintf("[TCPDUMP]select  [sd-card] mode\n");
+        if (STRCMP(mode, ==, "file"))
+            rt_kprintf("[TCPDUMP]select  [file-system] mode\n");
 
         if (STRCMP(mode, ==, "rdb"))
             rt_kprintf("[TCPDUMP]select  [rdb] mode\n");
@@ -589,12 +589,13 @@ static int rt_tcpdump_cmd_deal(struct optparse *options)
         if (options->optarg == RT_NULL)
             return -RT_ERROR;
 
-        if (STRCMP(options->optarg, ==, "sd"))
+        if (STRCMP(options->optarg, ==, "file"))
         {
             mode = options->optarg;
             tcpdump_write = rt_tcpdump_pcap_file_write;
             return RT_EOK;
         }
+        
         if (STRCMP(options->optarg, ==, "rdb"))
         {
             tcpdump_write = rt_tcpdump_pcap_file_save;
