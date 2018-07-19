@@ -180,7 +180,7 @@ msh />
 
 ### 3.4、抓包测试
 
-> 使用 [ping](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 命令来进行抓包测试，`ping` 命令需要在 menuconfig 配置使能，详情如下：
+> 使用 [ping ](https://github.com/RT-Thread-packages/netutils/blob/master/ping/README.md) 命令来进行抓包测试，`ping` 命令需要在 menuconfig 配置使能，详情如下：
 
 ```
   RT-Thread online packages --->

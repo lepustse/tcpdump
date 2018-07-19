@@ -32,7 +32,7 @@
 #ifdef PKG_NETUTILS_TCPDUMP_DBG
     #define DBG_ENABLE
 
-    #define DBG_SECTION_NAME  "[TCPDUMP]"
+    #define DBG_SECTION_NAME  "TCPDUMP"
     #define DBG_LEVEL         DBG_INFO
     #define DBG_COLOR
 #else
@@ -135,10 +135,9 @@ enum rt_tcpdump_return_param
     HELP = -3,
 };
 
-/* rdb pipe */
 static struct rt_device *tcpdump_pipe;
-
 static struct rt_mailbox *tcpdump_mb;
+
 static struct netif *netif;
 static netif_linkoutput_fn link_output;
 static netif_input_fn input;
@@ -186,6 +185,7 @@ static void hex_dump(const rt_uint8_t *ptr, rt_size_t buflen)
 }
 #endif
 
+/* get tx data */
 static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
 {
     RT_ASSERT(netif != RT_NULL);
@@ -202,6 +202,7 @@ static err_t _netif_linkoutput(struct netif *netif, struct pbuf *p)
     return link_output(netif, p);
 }
 
+/* get rx data */
 static err_t _netif_input(struct pbuf *p, struct netif *inp)
 {
     RT_ASSERT(inp != RT_NULL);
@@ -224,13 +225,13 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
 
     if (filename == RT_NULL)
     {
-        dbg_log(DBG_ERROR, "file name is null\n");
+        dbg_log(DBG_ERROR, "file name is null!\n");
         return -RT_ERROR;
     }
 
     if ((len == 0) && (fd > 0))
     {
-        dbg_log(DBG_ERROR, "ip mess error and close file\n");
+        dbg_log(DBG_ERROR, "ip mess error and close file!\n");
         close(fd);
         fd = -1;
         return -RT_ERROR;
@@ -241,7 +242,7 @@ static rt_err_t rt_tcpdump_pcap_file_write(const void *buf, int len)
         fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0);
         if (fd < 0)
         {
-            dbg_log(DBG_ERROR, "open file failed\n");
+            dbg_log(DBG_ERROR, "open file failed!\n");
             return -RT_ERROR;
         }
     }
@@ -294,11 +295,12 @@ static rt_err_t rt_tcpdump_pcap_file_init(void)
     {
         if (rt_device_open(tcpdump_pipe, RT_DEVICE_OFLAG_WRONLY) != RT_EOK)
         {
-            dbg_log(DBG_LOG, "not found pipe device\n");
+            dbg_log(DBG_LOG, "not found pipe device!\n");
             return -RT_ERROR;
         }
     }
 
+    /* in rdb mode does not need to write pcap file header */
     if ((tcpdump_write != RT_NULL) && (tcpdump_write == rt_tcpdump_pcap_file_write))
     {
         PACP_FILE_HEADER_CREATE(&file_header);
@@ -342,11 +344,14 @@ static void rt_tcpdump_thread_entry(void *param)
             pbuf_free(pbuf);
             pbuf = RT_NULL;
         }
+
+        /* tcpdump deinit, the mailbox does not receive the data, exits the thread*/
         else
         {
             dbg_log(DBG_INFO, "tcpdump stop and tcpdump thread exit!\n");
             close(fd);
             fd = -1;
+            
             if (tcpdump_pipe != RT_NULL)
                 rt_device_close((rt_device_t)tcpdump_pipe);
 
@@ -358,11 +363,13 @@ static void rt_tcpdump_thread_entry(void *param)
     }
 }
 
+/* set file name */
 static void rt_tcpdump_filename_set(const char *name)
 {
     filename = rt_strdup(name);
 }
 
+/* delete file name */
 static void rt_tcpdump_filename_del(void)
 {
     name = RT_NULL;
@@ -372,11 +379,13 @@ static void rt_tcpdump_filename_del(void)
     filename = RT_NULL;
 }
 
+/* set network interface name */
 static void rt_tcpdump_ethname_set(const char *eth)
 {
     ethname = rt_strdup(eth);
 }
 
+/* delete network interface name */
 static void rt_tcpdump_ethname_del(void)
 {
     eth = RT_NULL;
@@ -397,6 +406,7 @@ static int rt_tcpdump_init(void)
         return -RT_ERROR;
     }
 
+    /* print and set default state */
     rt_tcpdump_init_indicate();
 
     tcpdump_pipe = rt_device_find(TCPDUMP_PIPE_DEVICE);
@@ -405,7 +415,7 @@ static int rt_tcpdump_init(void)
     {
         if (tcpdump_pipe == RT_NULL)
         {
-            dbg_log(DBG_ERROR, "pipe is error\n");
+            dbg_log(DBG_ERROR, "pipe is error!\n");
             return -RT_ERROR;
         }
     }
@@ -414,7 +424,7 @@ static int rt_tcpdump_init(void)
     if (device == RT_NULL)
     {
         dbg_log(DBG_ERROR, "network interface card [%s] device not find!\n", eth);
-        dbg_log(DBG_ERROR, "tcpdump thread startup failed and enter the correct network interface please\n");
+        dbg_log(DBG_ERROR, "tcpdump thread startup failed and enter the correct network interface please!\n");
         return -RT_ERROR;
     }
     if ((device->netif == RT_NULL) || (device->netif->linkoutput == RT_NULL))
@@ -454,6 +464,7 @@ static int rt_tcpdump_init(void)
     rt_hw_interrupt_enable(level);
     /* linkoutput and input init */
 
+    /* write pcap file header */
     rt_tcpdump_pcap_file_init();
 
     rt_thread_startup(tid);
@@ -526,10 +537,11 @@ static void rt_tcpdump_help_info_print(void)
 
 static void rt_tcpdump_error_info_deal(void)
 {
-    dbg_log(DBG_ERROR, "tcpdump command is incorrect, please refer to the help information\n");
+    dbg_log(DBG_ERROR, "tcpdump command is incorrect, please refer to the help information!\n");
     rt_tcpdump_help_info_print();
 }
 
+/* print and set default state */
 static void rt_tcpdump_init_indicate(void)
 {
     int name_flag = 0, eth_flag = 0, mode_flag = 0;
@@ -571,6 +583,7 @@ static void rt_tcpdump_init_indicate(void)
         rt_kprintf("[TCPDUMP]save in [%s]\n", name);
 }
 
+/* msh command-line deal */
 static int rt_tcpdump_cmd_deal(struct optparse *options)
 {
     switch (options->optopt)
@@ -584,6 +597,7 @@ static int rt_tcpdump_cmd_deal(struct optparse *options)
         return HELP;
 
     case 'i':
+        /* it's illegal without parameters. */
         if (options->optarg == RT_NULL)
             return -RT_ERROR;
 
@@ -625,6 +639,7 @@ static int rt_tcpdump_cmd_deal(struct optparse *options)
     return RT_EOK;
 }
 
+/* msh command-line parsing */
 static int rt_tcpdump_cmd_parse(char *argv[], const char *cmd)
 {
     int ch, res, invalid_argv = 0;
@@ -669,6 +684,7 @@ static int rt_tcpdump_cmd_parse(char *argv[], const char *cmd)
         }
     }
 
+    /* judge invalid command */
     if (invalid_argv == 0)
     {
         rt_tcpdump_error_info_deal();
